@@ -23,10 +23,10 @@ class State {
     }
 
     reset_timeout() {
-        if (this.timeout  != null) {
+        if (this.timeout != null) {
             clearTimeout(this.timeout);
         }
-        this.timeout = setTimeout(() => this.on_timeout(), 5*1000);
+        this.timeout = setTimeout(() => this.on_timeout(), 5 * 1000);
     }
 
     on_timeout() {
@@ -47,8 +47,9 @@ window.addEventListener("DOMContentLoaded", () => {
     state = new State();
 });
 
-function on_message(data, data_t, data_y_all) {
-    let data_json = JSON.parse(data);
+function on_message(message_data, state_data_t, state_data_y_all) {
+    let data_json = JSON.parse(message_data);
+    let first_time = state_data_t.length === 0;
 
     // for each sub-message
     let keys = [];
@@ -58,16 +59,16 @@ function on_message(data, data_t, data_y_all) {
         info.innerHTML = item["info"];
 
         // collect plot data
-        data_t.push(new Date(item["t"] * 1000))
+        state_data_t.push(new Date(item["t"] * 1000))
 
         let item_y_all = item["y_all"];
         keys = Object.keys(item_y_all);
 
         for (const [key, y] of Object.entries(item_y_all)) {
-            if (!(key in data_y_all)) {
-                data_y_all[key] = [];
+            if (!(key in state_data_y_all)) {
+                state_data_y_all[key] = [];
             }
-            data_y_all[key].push(y)
+            state_data_y_all[key].push(y)
         }
     }
 
@@ -75,30 +76,37 @@ function on_message(data, data_t, data_y_all) {
     const max_time_diff_ms = 60 * 1000;
     let last = Date.now();
 
-    if (data_t.length >= 1) {
-        last = data_t[data_t.length - 1];
-        let index = data_t.findIndex(element => {
+    if (state_data_t.length >= 1) {
+        last = state_data_t[state_data_t.length - 1];
+        let index = state_data_t.findIndex(element => {
             return (last - element) < max_time_diff_ms;
         });
 
         if (index >= 0) {
-            data_t.splice(0, index);
+            state_data_t.splice(0, index);
             for (const key of keys) {
-                data_y_all[key].splice(0, index);
+                state_data_y_all[key].splice(0, index);
             }
         }
     }
 
-    let lines = []
+    // finally update the plot
+    const plot = document.getElementById("plot");
+
+    let data = []
     for (const key of keys) {
-        lines.push({
-            x: data_t,
-            y: data_y_all[key],
+        data.push({
+            x: state_data_t,
+            y: state_data_y_all[key],
             name: key,
+            mode: "lines",
         })
     }
 
-    const plot = document.getElementById("plot");
-    Plotly.newPlot(plot, lines, {margin: {t: 0}});
-    Plotly.relayout(plot, {"xaxis": {"type": "date", range: [last - max_time_diff_ms, last]}})
+    let layout = {
+        margin: {t: 0},
+        xaxis: {type: "date", range: [last - max_time_diff_ms, last]},
+    }
+
+    Plotly.newPlot(plot, data, layout);
 }
