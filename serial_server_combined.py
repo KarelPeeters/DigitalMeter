@@ -10,7 +10,7 @@ from parse import Parser, Message
 from run_server import run_server
 
 
-def serial_generator(broadcast: Broadcast):
+def serial_generator(broadcast: Broadcast, log):
     port = serial.Serial(
         port='/dev/ttyS0',
         baudrate=115200,
@@ -35,6 +35,9 @@ def serial_generator(broadcast: Broadcast):
             parser.reset()
             continue
 
+        if log is not None:
+            log.write(line_str)
+
         raw_msg = parser.push_line(line_str)
 
         if raw_msg is not None:
@@ -57,7 +60,11 @@ def main():
     thread = Thread(target=thread_main)
     thread.start()
 
-    grapher.run_grapher(serial_generator)
+    def generator(broadcast):
+        with open("log.txt", "a") as log:
+            serial_generator(broadcast, log)
+
+    grapher.run_grapher(generator)
 
 
 if __name__ == '__main__':
