@@ -38,7 +38,7 @@ def parse_power(s: Optional[str]) -> float:
     if not m:
         return math.nan
 
-    return float(m.group(1))
+    return float(m.group(1)) * 1000
 
 
 @dataclass
