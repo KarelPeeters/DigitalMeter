@@ -36,6 +36,7 @@ class State {
     }
 
     on_message(message) {
+        this.reset_timeout();
         console.log("Received message '" + message.data + "'");
         on_message(message.data, this.data_t, this.data_y_all);
     }
