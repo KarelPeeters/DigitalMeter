@@ -7,8 +7,9 @@ import json
 import math
 import random
 import time
+from dataclasses import dataclass
 from threading import Thread, Lock
-from typing import Set, Callable
+from typing import Set, Callable, Dict
 
 import janus
 import websockets
@@ -50,8 +51,9 @@ async def handler(websocket, broadcast: Broadcast):
                 except janus.AsyncQueueEmpty:
                     break
 
-            print(f"Sending {data}")
-            await websocket.send(json.dumps(data))
+            data_json = [point.to_json() for point in data]
+            print(f"Sending {data_json}")
+            await websocket.send(json.dumps(data_json))
 
     except ConnectionClosedOK:
         broadcast.remove_queue(queue.sync_q)
@@ -72,7 +74,20 @@ def dummy_generator(broadcast: Broadcast):
         yb = math.sin(t * 0.2) + random.random() * 0.2
         yc = math.sin(t * 0.5) + random.random() * 0.05
 
-        broadcast.send({"t": t, "y_all": {"a": ya, "b": yb, "c": yc}})
+        point = GraphPoint(t, {"a": ya, "b": yb, "c": yc})
+        broadcast.send(point)
+
+
+@dataclass
+class GraphPoint:
+    x: float
+    y_all: Dict[str, float]
+
+    def to_json(self) -> Dict:
+        return {
+            "t": self.x,
+            "y_all": self.y_all,
+        }
 
 
 def run_grapher(generator: Callable[[Broadcast], None]):
