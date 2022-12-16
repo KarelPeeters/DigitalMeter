@@ -36,7 +36,7 @@ class Broadcast:
 
 
 async def handler(websocket, broadcast: Broadcast):
-    print("Accepted connection!")
+    print(f"Accepted connection from {websocket.remote_address}")
 
     queue = janus.Queue()
     broadcast.add_queue(queue.sync_q)
@@ -52,7 +52,7 @@ async def handler(websocket, broadcast: Broadcast):
                     break
 
             data_json = [point.to_json() for point in data]
-            print(f"Sending {data_json}")
+            print(f"Sending {data_json} to {websocket.remote_address}")
             await websocket.send(json.dumps(data_json))
 
     except ConnectionClosedOK:
