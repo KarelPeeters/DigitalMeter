@@ -8,7 +8,7 @@ import math
 import random
 import time
 from threading import Thread, Lock
-from typing import Set
+from typing import Set, Callable
 
 import janus
 import websockets
@@ -62,7 +62,7 @@ async def async_main(broadcast: Broadcast):
         await asyncio.Future()  # run forever
 
 
-def generator_main(broadcast: Broadcast):
+def dummy_generator(broadcast: Broadcast):
     for _ in itertools.count():
         time.sleep(0.2)
 
@@ -75,14 +75,14 @@ def generator_main(broadcast: Broadcast):
         broadcast.send({"t": t, "y_all": {"a": ya, "b": yb, "c": yc}})
 
 
-def main():
+def run_grapher(generator: Callable[[Broadcast], None]):
     broadcast = Broadcast()
 
-    thread = Thread(target=generator_main, args=(broadcast,))
+    thread = Thread(target=generator, args=(broadcast,))
     thread.start()
 
     asyncio.run(async_main(broadcast))
 
 
 if __name__ == "__main__":
-    main()
+    run_grapher(dummy_generator)
