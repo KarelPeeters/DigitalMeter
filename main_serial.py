@@ -18,9 +18,18 @@ def main():
     while True:
         line = port.readline()
         if len(line) == 0:
-            print("Timeout...")
+            print("Timeout")
+            parser.reset()
+            continue
 
-        raw_msg = parser.push_line(line.decode())
+        try:
+            line_str = line.decode()
+        except UnicodeDecodeError:
+            print("Unicode decode error")
+            parser.reset()
+            continue
+
+        raw_msg = parser.push_line(line_str)
 
         if raw_msg is not None:
             msg = Message(raw_msg)

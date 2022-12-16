@@ -56,7 +56,10 @@ class Message:
 class Parser:
     def __init__(self):
         self.wait_for_sync = True
+        self.lines = []
 
+    def reset(self):
+        self.wait_for_sync = True
         self.lines = []
 
     def push_line(self, line: str) -> Optional[RawMessage]:
@@ -73,4 +76,3 @@ class Parser:
                 self.lines.append(line)
 
         return None
-
