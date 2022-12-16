@@ -67,8 +67,12 @@ def generator_main(broadcast: Broadcast):
         time.sleep(0.2)
 
         t = time.time()
-        y = math.sin(t * 0.1) + random.random() * 0.1
-        broadcast.send({"t": t, "y": y})
+
+        ya = math.sin(t * 0.1) + random.random() * 0.1
+        yb = math.sin(t * 0.2) + random.random() * 0.2
+        yc = math.sin(t * 0.5) + random.random() * 0.05
+
+        broadcast.send({"t": t, "y_all": {"a": ya, "b": yb, "c": yc}})
 
 
 def main():

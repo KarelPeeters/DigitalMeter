@@ -2,26 +2,63 @@ window.addEventListener("DOMContentLoaded", () => {
     const plot = document.getElementById("plot");
 
     console.log("Creating test plot")
-    Plotly.newPlot(plot, [{x: [], y: []}], {margin: {t: 0}});
+    //Plotly.newPlot(plot, [{x: [], y: []}], {margin: {t: 0}});
 
     console.log("Opening socket")
     const websocket = new WebSocket("ws://" + location.hostname + ":8001");
+
+    const data_t = [];
+    const data_y_all = {};
 
     console.log("Adding event lister")
     websocket.addEventListener("message", ({data}) => {
         console.log("Received message " + data)
         let data_json = JSON.parse(data);
 
-        const new_data_t = []
-        const new_data_y = []
+        // append new data
+        let keys = [];
+        for (const item of data_json) {
+            data_t.push(new Date(item["t"] * 1000))
 
-        for (const value of data_json) {
-            new_data_t.push(new Date(value["t"] * 1000))
-            new_data_y.push(value["y"])
+            let item_y_all = item["y_all"];
+            keys = Object.keys(item_y_all);
+
+            for (const [key, y] of Object.entries(item_y_all)) {
+                if (!(key in data_y_all)) {
+                    data_y_all[key] = [];
+                }
+                data_y_all[key].push(y)
+            }
         }
 
-        // Plotly.relayout(plot, view);
-        Plotly.extendTraces(plot, {x: [new_data_t], y: [new_data_y]}, [0])
+        // remove old data
+        const max_time_diff_ms = 60 * 1000;
+        let last = Date.now();
+
+        if (data_t.length >= 1) {
+            last = data_t[data_t.length - 1];
+            let index = data_t.findIndex(element => {
+                return (last - element)  < max_time_diff_ms;
+            });
+
+            if (index >= 0) {
+                data_t.splice(0, index);
+                for (const key of keys) {
+                    data_y_all[key].splice(0, index);
+                }
+            }
+        }
+
+        let lines = []
+        for (const key of keys) {
+            lines.push({
+                x: data_t,
+                y: data_y_all[key],
+                name: key,
+            })
+        }
+        Plotly.newPlot(plot, lines, {margin: {t: 0}});
+        Plotly.relayout(plot, {"xaxis": {"type": "date", range: [last - max_time_diff_ms, last]}})
     });
 });
 
