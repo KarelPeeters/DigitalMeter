@@ -1,4 +1,5 @@
 import contextlib
+import http.server
 import mimetypes
 import os
 import socket
@@ -19,8 +20,15 @@ def run_server(directory):
                     socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
             return super().server_bind()
 
+    class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
+        def end_headers(self):
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+            super().end_headers()
+
     http_server_test(
-        HandlerClass=partial(SimpleHTTPRequestHandler, directory=directory),
+        HandlerClass=partial(NoCacheHandler, directory=directory),
         ServerClass=DualStackServer,
         port=8000,
         bind=None,
