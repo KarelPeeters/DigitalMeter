@@ -15,6 +15,9 @@ def main():
             raw_msg = parser.push_line(line)
 
             if raw_msg is not None:
+                for key, value in raw_msg.values.items():
+                    print(key, value)
+
                 msg = Message(raw_msg)
                 print(msg)
 
