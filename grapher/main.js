@@ -1,15 +1,50 @@
+class State {
+    constructor() {
+        this.data_t = []
+        this.data_y_all = []
+
+        this.socket = null;
+        this.timeout = null;
+
+        this.reset_socket()
+    }
+
+    reset_socket() {
+        if (this.socket != null) {
+            console.log("Closing old socket")
+            this.socket.close()
+        }
+
+        console.log("Creating new socket")
+        this.socket = new WebSocket("ws://" + location.hostname + ":8001");
+        this.socket.addEventListener("message", message => this.on_message(message));
+
+        this.reset_timeout()
+    }
+
+    reset_timeout() {
+        console.log("Resetting timeout");
+        if (this.timeout  != null) {
+            clearTimeout(this.timeout);
+        }
+        this.timeout = setTimeout(() => this.on_timeout(), 5*1000);
+    }
+
+    on_timeout() {
+        console.log("Timeout");
+        this.reset_socket()
+    }
+
+    on_message(message) {
+        console.log("Received message '" + message.data + "'");
+        on_message(message.data, this.data_t, this.data_y_all);
+    }
+}
+
+let state;
 window.addEventListener("DOMContentLoaded", () => {
-    // TODO re-open socket if anything goes wrong
-    console.log("Opening socket")
-    const websocket = new WebSocket("ws://" + location.hostname + ":8001");
-
-    const data_t = [];
-    const data_y_all = {};
-
-    console.log("Adding event lister")
-    websocket.addEventListener("message", ({data}) => {
-        on_message(data, data_t, data_y_all);
-    });
+    console.log("Creating state");
+    state = new State();
 });
 
 function on_message(data, data_t, data_y_all) {
