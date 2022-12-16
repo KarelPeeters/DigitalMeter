@@ -1,9 +1,5 @@
 window.addEventListener("DOMContentLoaded", () => {
-    const plot = document.getElementById("plot");
-
-    console.log("Creating test plot")
-    //Plotly.newPlot(plot, [{x: [], y: []}], {margin: {t: 0}});
-
+    // TODO re-open socket if anything goes wrong
     console.log("Opening socket")
     const websocket = new WebSocket("ws://" + location.hostname + ":8001");
 
@@ -15,9 +11,14 @@ window.addEventListener("DOMContentLoaded", () => {
         console.log("Received message " + data)
         let data_json = JSON.parse(data);
 
-        // append new data
+        // for each sub-message
         let keys = [];
         for (const item of data_json) {
+            // set info, the last one will win
+            let info = document.getElementById("info")
+            info.innerHTML = item["info"];
+
+            // collect plot data
             data_t.push(new Date(item["t"] * 1000))
 
             let item_y_all = item["y_all"];
@@ -38,7 +39,7 @@ window.addEventListener("DOMContentLoaded", () => {
         if (data_t.length >= 1) {
             last = data_t[data_t.length - 1];
             let index = data_t.findIndex(element => {
-                return (last - element)  < max_time_diff_ms;
+                return (last - element) < max_time_diff_ms;
             });
 
             if (index >= 0) {
@@ -57,6 +58,8 @@ window.addEventListener("DOMContentLoaded", () => {
                 name: key,
             })
         }
+
+        const plot = document.getElementById("plot");
         Plotly.newPlot(plot, lines, {margin: {t: 0}});
         Plotly.relayout(plot, {"xaxis": {"type": "date", range: [last - max_time_diff_ms, last]}})
     });

@@ -74,7 +74,7 @@ def dummy_generator(broadcast: Broadcast):
         yb = math.sin(t * 0.2) + random.random() * 0.2
         yc = math.sin(t * 0.5) + random.random() * 0.05
 
-        point = GraphPoint(t, {"a": ya, "b": yb, "c": yc})
+        point = GraphPoint(t, {"a": ya, "b": yb, "c": yc}, f"info t={t}")
         broadcast.send(point)
 
 
@@ -82,11 +82,13 @@ def dummy_generator(broadcast: Broadcast):
 class GraphPoint:
     x: float
     y_all: Dict[str, float]
+    info: str
 
     def to_json(self) -> Dict:
         return {
             "t": self.x,
             "y_all": self.y_all,
+            "info": self.info,
         }
 
 
