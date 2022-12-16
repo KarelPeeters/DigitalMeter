@@ -23,7 +23,6 @@ class State {
     }
 
     reset_timeout() {
-        console.log("Resetting timeout");
         if (this.timeout  != null) {
             clearTimeout(this.timeout);
         }
@@ -49,7 +48,6 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 function on_message(data, data_t, data_y_all) {
-    console.log("Received message " + data)
     let data_json = JSON.parse(data);
 
     // for each sub-message
