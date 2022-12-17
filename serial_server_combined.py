@@ -47,7 +47,7 @@ def serial_generator(broadcast: Broadcast, log):
                 "P2 [W]": msg.instant_power_2,
                 "P3 [W]": msg.instant_power_3,
             }
-            info = f"Peak power: {msg.peak_power} W at {msg.peak_power_timestamp}"
+            info = f"Peak power: {msg.peak_power} W at {msg.peak_power_timestamp.full_str()}"
             point = GraphPoint(time.time(), values, info)
             broadcast.send(point)
 
