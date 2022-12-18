@@ -1,7 +1,7 @@
 import math
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 PATTERN_ITEM = re.compile(r"^(?P<key>\d+-\d+:\d+\.\d+\.\d+)(?P<full_value>.*)$")
@@ -13,28 +13,9 @@ PATTERN_KWH = re.compile(r"(?P<number>\d+\.\d+)\*kW")
 
 
 @dataclass
-class Timestamp:
-    date_time: datetime
-    dst: bool
-    full_str: str
-    short_str: str
-
-
-@dataclass
-class MaybeTimeStamp:
-    timestamp: Optional[Timestamp]
-
-    def full_str(self):
-        if self.timestamp is not None:
-            return self.timestamp.full_str
-        else:
-            return "unknown"
-
-
-@dataclass
 class MessageValue:
     value: str
-    timestamp: MaybeTimeStamp
+    timestamp: int
 
     @staticmethod
     def parse(full_value: str):
@@ -48,9 +29,9 @@ class MessageValue:
         m = re.match(PATTERN_VALUE_SINGLE, full_value)
         if m:
             value = m.groupdict()["value"]
-            return MessageValue(value, MaybeTimeStamp(None))
+            return MessageValue(value, 0)
 
-        return MessageValue(full_value, MaybeTimeStamp(None))
+        return MessageValue(full_value, 0)
 
 
 class RawMessage:
@@ -89,43 +70,39 @@ def parse_power(s: Optional[str]) -> float:
     return float(m.group(1)) * 1000
 
 
-def parse_timestamp(short_str: Optional[str]) -> MaybeTimeStamp:
+def parse_timestamp(short_str: Optional[str]) -> int:
     if short_str is None:
-        return MaybeTimeStamp(None)
+        return 0
 
     try:
         dst = short_str.endswith("S")
         not_dst = short_str.endswith("W")
         if not (dst or not_dst):
             raise ValueError()
+        tz = timezone(timedelta(hours=+1 if dst else +2))
 
-        date_time = datetime.strptime(short_str[:-1], "%y%m%d%H%M%S")
-
-        full_str = date_time.strftime("%Y-%m-%d %H:%M:%S")
-        if dst:
-            full_str += " DST"
-
-        return MaybeTimeStamp(Timestamp(date_time, dst, full_str, short_str))
+        date_time = datetime.strptime(short_str[:-1], "%y%m%d%H%M%S").replace(tzinfo=tz)
+        return int(date_time.timestamp())
     except ValueError:
         print(f"WARNING: failed to parse timestamp '{short_str}'")
-        return MaybeTimeStamp(None)
+        return 0
 
 
 @dataclass
 class Message:
-    timestamp: MaybeTimeStamp
+    timestamp: int
     instant_power_1: float
     instant_power_2: float
     instant_power_3: float
     peak_power: float
-    peak_power_timestamp: MaybeTimeStamp
+    peak_power_timestamp: int
 
     @staticmethod
     def from_raw(msg: RawMessage):
         def map_value(x, f, d):
             return f(x.value) if x is not None else d
 
-        timestamp = map_value(msg.values.get("0-0:1.0.0"), parse_timestamp, MaybeTimeStamp(None))
+        timestamp = map_value(msg.values.get("0-0:1.0.0"), parse_timestamp, None)
 
         instant_power_1 = map_value(msg.values.get("1-0:21.7.0"), parse_power, math.nan)
         instant_power_2 = map_value(msg.values.get("1-0:41.7.0"), parse_power, math.nan)
@@ -133,7 +110,7 @@ class Message:
 
         peak_power_value = msg.values.get("1-0:1.6.0")
         peak_power = map_value(peak_power_value, parse_power, math.nan)
-        peak_power_timestamp = peak_power_value.timestamp if peak_power_value is not None else MaybeTimeStamp(None)
+        peak_power_timestamp = peak_power_value.timestamp if peak_power_value is not None else None
 
         return Message(
             timestamp=timestamp,

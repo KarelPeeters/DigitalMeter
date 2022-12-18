@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.dates import DateFormatter
@@ -26,7 +28,7 @@ def main():
             if raw_msg is not None:
                 msg = Message.from_raw(raw_msg)
 
-                timestamp.append(msg.timestamp.timestamp.date_time)
+                timestamp.append(datetime.fromtimestamp(msg.timestamp))
                 instant_power_1.append(msg.instant_power_1)
                 instant_power_2.append(msg.instant_power_2)
                 instant_power_3.append(msg.instant_power_3)

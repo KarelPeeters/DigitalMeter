@@ -8,7 +8,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from http.server import test as http_server_test
 
 
-def run_server(directory):
+def run_http_server(directory):
     mimetypes.add_type("application/javascript", ".js")
     mimetypes.add_type("text/html", ".html")
 
@@ -36,7 +36,7 @@ def run_server(directory):
 
 
 def main():
-    run_server(os.getcwd())
+    run_http_server(os.getcwd())
 
 
 if __name__ == '__main__':
