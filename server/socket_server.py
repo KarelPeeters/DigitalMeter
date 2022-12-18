@@ -91,7 +91,8 @@ class Tracker:
             # load initial history from database
             history_items = database.execute(
                 "SELECT timestamp, instant_power_1, instant_power_2, instant_power_3 from meter_samples "
-                "WHERE (timestamp > ?)",
+                "WHERE (timestamp > ?)"
+                "ORDER BY timestamp",
                 (first_timestamp,),
             ).fetchall()
 
