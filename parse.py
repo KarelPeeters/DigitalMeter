@@ -53,6 +53,7 @@ class RawMessage:
             value = MessageValue.parse(full_value)
 
             if key in values:
+                # TODO just fail instead?
                 print(f"WARNING: overriding key '{key}'")
             values[key] = value
 

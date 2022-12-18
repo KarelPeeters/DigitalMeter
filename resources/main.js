@@ -121,6 +121,10 @@ class MultiSeries {
         this.all_series = {}
     }
 
+    clear() {
+        this.all_series = {}
+    }
+
     push_update(all_series_data) {
         for (const [key, series_data] of Object.entries(all_series_data)) {
             if (!(key in this.all_series)) {
@@ -136,6 +140,10 @@ function on_message(multi_series, msg_str) {
     let msg_type = msg_json["type"];
 
     if (msg_type === "initial" || msg_type === "update") {
+        if (msg_type === "initial") {
+            multi_series.clear();
+        }
+
         // store the data
         multi_series.push_update(msg_json["series"]);
 

@@ -22,14 +22,16 @@ from parse import Message
 @dataclass
 class Series:
     window_size: int
+    bucket_size: int
+
     timestamps: List[int]
     instant_power_1: List[float]
     instant_power_2: List[float]
     instant_power_3: List[float]
 
     @staticmethod
-    def empty(window_size):
-        return Series(window_size, [], [], [], [])
+    def empty(window_size: int, bucket_size: int):
+        return Series(window_size, bucket_size, [], [], [], [])
 
     def to_json(self):
         return {
@@ -45,6 +47,7 @@ class Series:
     def clone(self):
         return Series(
             self.window_size,
+            self.bucket_size,
             list(self.timestamps),
             list(self.instant_power_1),
             list(self.instant_power_2),
@@ -82,13 +85,6 @@ class MultiSeries:
     short: Series
     long: Series
 
-    @staticmethod
-    def empty(short_window_size: int, long_window_size: int):
-        return MultiSeries(
-            Series.empty(short_window_size),
-            Series.empty(long_window_size),
-        )
-
     def to_json(self):
         return {
             "short": self.short.to_json(),
@@ -111,53 +107,71 @@ class BroadcastMessage:
 
 # TODO send nan for missing values instead of nothing, so JS doesn't just interpolate
 
+# TODO implement this is a lazy way
+def fetch_series(database: Connection, last_timestep: int, window_size: int, bucket_size: int) -> Series:
+    oldest = last_timestep // bucket_size * bucket_size - window_size - bucket_size
+    newest = last_timestep // bucket_size * bucket_size - bucket_size
+
+    print(f"last timestep: {last_timestep}")
+    print("fetching with args", (window_size, oldest))
+
+    items = database.execute(
+        "WITH const as (SELECT ? as bucket_size, ? as oldest, ? as newest) "
+        "SELECT timestamp / bucket_size * bucket_size, "
+        "AVG(instant_power_1),"
+        "AVG(instant_power_2),"
+        "AVG(instant_power_3)"
+        "FROM meter_samples, const "
+        "WHERE timestamp / bucket_size * bucket_size BETWEEN oldest AND newest "
+        "GROUP BY timestamp / bucket_size "
+        "ORDER BY timestamp ",
+        (bucket_size, oldest, newest)
+    )
+
+    series = Series.empty(window_size, bucket_size)
+    series.extend_items(items)
+
+    return series
+
+
 class Tracker:
     def __init__(self, history_window_size: int):
         self.history_window_size = history_window_size
         self.last_timestamp: Optional[int] = None
 
-        self.series = MultiSeries.empty(20, 8*20)
+        self.series = MultiSeries(
+            Series.empty(20, 1),
+            Series.empty(200, 4),
+        )
 
     def process_message(self, database: Connection, msg: Message):
         is_first = self.last_timestamp is None
         self.last_timestamp = msg.timestamp
 
-        if is_first:
-            # load initial history from database
-            short_history_items = database.execute(
-                "SELECT timestamp, instant_power_1, instant_power_2, instant_power_3 from meter_samples "
-                "WHERE (timestamp > ?)"
-                "ORDER BY timestamp",
-                ((msg.timestamp - self.series.short.window_size),),
-            ).fetchall()
-            self.series.short.extend_items(short_history_items)
-
-        # append the real message
-        self.series.short.append_msg(msg)
-
         # TODO implement caching for this, or at least don't do it every time
-        self.series.long = Series.empty(self.series.long.window_size)
-
-        long_history_items = database.execute(
-            "SELECT CAST(strftime('%s', strftime('%Y-%m-%d %H:%M:00', timestamp, 'unixepoch')) as INTEGER), "
-            "AVG(instant_power_1), AVG(instant_power_2), AVG(instant_power_3) "
-            "FROM meter_samples "
-            "WHERE timestamp > ?"
-            "GROUP BY strftime('%Y-%m-%d %H:%M', timestamp, 'unixepoch') "
-            "ORDER BY strftime('%Y-%m-%d %H:%M', timestamp, 'unixepoch')",
-            (self.last_timestamp - self.series.long.window_size,)
+        self.series.short = fetch_series(
+            database, self.last_timestamp,
+            self.series.short.window_size, self.series.short.bucket_size
         )
-        self.series.long.extend_items(long_history_items)
-
-        print(f"Long hist size: {len(self.series.long.timestamps)}")
-
-        return MultiSeries(
-            Series(
-                self.series.short.window_size,
-                [msg.timestamp], [msg.instant_power_1], [msg.instant_power_2], [msg.instant_power_3]
-            ),
-            Series(self.series.long.window_size, [], [], [], []),
+        self.series.long = fetch_series(
+            database, self.last_timestamp,
+            self.series.long.window_size, self.series.long.bucket_size
         )
+
+        # TODO get this to properly match the factors used instead of just mucking with time formatting
+        #  maybe something with abs and mod can do the trick?
+        # TODO we need separate window_size and bucket_size
+
+        # return MultiSeries(
+        #     Series(
+        #         self.series.short.window_size,
+        #         [msg.timestamp], [msg.instant_power_1], [msg.instant_power_2], [msg.instant_power_3]
+        #     ),
+        #     Series(self.series.long.window_size, [], [], [], []),
+        # )
+
+        # todo we're sending a lot of duplicate values here...
+        return self.series.clone()
 
     def get_history(self) -> MultiSeries:
         return self.series.clone()
@@ -192,11 +206,7 @@ class DataStore:
         with self.lock:
             print(f"Processing message {msg}")
 
-            # update trackers
-            update_series = self.tracker.process_message(self.database, msg)
-
             # add to database
-            # do this after updating the trackers so we don't count the first value twice
             if msg.timestamp is not None:
                 self.database.execute(
                     "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?)",
@@ -208,6 +218,10 @@ class DataStore:
                     (msg.peak_power_timestamp, msg.peak_power)
                 )
             self.database.commit()
+
+            # update trackers
+            # careful, we've already added the new values to the database
+            update_series = self.tracker.process_message(self.database, msg)
 
             # broadcast update series to sockets
             for queue in self.broadcast_queues:
@@ -254,7 +268,8 @@ async def handler(websocket, store: DataStore):
 
         while True:
             update_series = await queue.async_q.get()
-            response = {"type": "update", "series": update_series.to_json()}
+            # TODO change back to "update"
+            response = {"type": "initial", "series": update_series.to_json()}
 
             print(f"Sending {response} to {websocket.remote_address}")
             await websocket.send(json.dumps(response))
