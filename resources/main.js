@@ -1,11 +1,9 @@
 class State {
     constructor() {
-        this.data_t = []
-        this.data_y_all = []
+        this.data = new DataState()
 
         this.socket = null;
         this.timeout = null;
-
         this.reset_socket()
     }
 
@@ -37,7 +35,7 @@ class State {
     on_message(message) {
         this.reset_timeout();
         console.log("Received message '" + message.data + "'");
-        on_message(message.data, this.data_t, this.data_y_all);
+        on_message(message.data, this.data);
     }
 }
 
@@ -47,66 +45,94 @@ window.addEventListener("DOMContentLoaded", () => {
     state = new State();
 });
 
-function on_message(message_data, state_data_t, state_data_y_all) {
-    let data_json = JSON.parse(message_data);
-    let first_time = state_data_t.length === 0;
+class DataState {
+    constructor() {
+        this.history_window_size = 10
 
-    // for each sub-message
-    let keys = [];
-    for (const item of data_json) {
-        // set info, the last one will win
-        let info = document.getElementById("info")
-        info.innerHTML = item["info"];
+        this.last_timestamp = 0
+        this.data_t = []
+        this.data_y_all = []
+    }
 
-        // collect plot data
-        state_data_t.push(new Date(item["t"] * 1000))
+    push_series(series) {
+        let data_t = this.data_t;
+        let data_y_all = this.data_y_all;
 
-        let item_y_all = item["y_all"];
-        keys = Object.keys(item_y_all);
+        // append data to state
+        for (let i = 0; i < series["timestamps"].length; i++) {
 
-        for (const [key, y] of Object.entries(item_y_all)) {
-            if (!(key in state_data_y_all)) {
-                state_data_y_all[key] = [];
+            let ts = new Date(series["timestamps"][i] * 1000);
+            data_t.push(ts);
+
+            // remember latest timestamp
+            this.last_timestamp = ts;
+
+            for (const [key, values] of Object.entries(series["values"])) {
+                if (!(key in data_y_all)) {
+                    data_y_all[key] = [];
+                }
+                data_y_all[key].push(values[i]);
             }
-            state_data_y_all[key].push(y)
+        }
+
+        // remove old data
+        if (data_t.length >= 1) {
+            let index = data_t.findIndex(element => {
+                return (this.last_timestamp - element) < this.history_window_size * 1000;
+            });
+
+            if (index >= 0) {
+                data_t.splice(0, index);
+                for (const key of Object.keys(data_y_all)) {
+                    data_y_all[key].splice(0, index);
+                }
+            }
+        }
+
+        for (const array of Object.values(data_y_all)) {
+            console.assert(data_t.length === array.length);
         }
     }
 
-    // remove old data
-    const max_time_diff_ms = 60 * 1000;
-    let last = Date.now();
+    plot_args() {
+        let plot_data = []
 
-    if (state_data_t.length >= 1) {
-        last = state_data_t[state_data_t.length - 1];
-        let index = state_data_t.findIndex(element => {
-            return (last - element) < max_time_diff_ms;
-        });
-
-        if (index >= 0) {
-            state_data_t.splice(0, index);
-            for (const key of keys) {
-                state_data_y_all[key].splice(0, index);
-            }
+        for (const key of Object.keys(this.data_y_all)) {
+            plot_data.push({
+                x: this.data_t,
+                y: this.data_y_all[key],
+                name: key,
+                mode: "lines",
+            })
         }
+
+        let plot_layout = {
+            margin: {t: 0},
+            xaxis: {type: "date", range: [this.last_timestamp - this.history_window * 1000, this.last_timestamp]},
+        }
+
+        return {plot_data, plot_layout}
     }
+}
 
-    // finally update the plot
-    const plot = document.getElementById("plot");
+function on_message(msg_str, data) {
+    let msg_json = JSON.parse(msg_str);
+    let msg_type = msg_json["type"];
 
-    let data = []
-    for (const key of keys) {
-        data.push({
-            x: state_data_t,
-            y: state_data_y_all[key],
-            name: key,
-            mode: "lines",
-        })
+
+    if (msg_type === "initial" || msg_type === "update") {
+        if ("history_window_size" in msg_json) {
+            data.history_window_size = msg_json["history_window_size"];
+        }
+
+        // store the data
+        data.push_series(msg_json["series"]);
+
+        // update the plot
+        let {plot_data, plot_layout} = data.plot_args();
+        const plot = document.getElementById("plot");
+        Plotly.newPlot(plot, plot_data, plot_layout);
+    } else {
+        console.log("Unknown message type " + msg_type)
     }
-
-    let layout = {
-        margin: {t: 0},
-        xaxis: {type: "date", range: [last - max_time_diff_ms, last]},
-    }
-
-    Plotly.newPlot(plot, data, layout);
 }

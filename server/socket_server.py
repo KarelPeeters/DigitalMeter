@@ -46,7 +46,8 @@ class BroadcastMessage:
 
 
 class Tracker:
-    def __init__(self):
+    def __init__(self, history_window_size: int):
+        self.history_window_size = history_window_size
         self.last_timestamp: Optional[int] = None
 
         self.history = Series([], [], [], [])
@@ -55,8 +56,7 @@ class Tracker:
         is_first = self.last_timestamp is None
         self.last_timestamp = msg.timestamp
 
-        history_window = 20
-        first_timestamp = msg.timestamp - history_window
+        first_timestamp = msg.timestamp - self.history_window_size
 
         if is_first:
             # load initial history from database
@@ -90,9 +90,10 @@ class Tracker:
 
 
 class DataStore:
-    def __init__(self, database: Connection):
+    def __init__(self, database: Connection, history_window_size: int):
         self.database = database
-        self.tracker = Tracker()
+        self.tracker = Tracker(history_window_size)
+        self.history_window_size = history_window_size
 
         self.lock = Lock()
         self.broadcast_queues: Set[JQueue] = set()
@@ -114,28 +115,29 @@ class DataStore:
         self.database.commit()
 
     def process_message(self, msg: Message):
-        print(f"Processing message {msg}")
-
-        # add to database
-        if msg.timestamp is not None:
-            self.database.execute(
-                "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?)",
-                (msg.timestamp, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3),
-            )
-        if msg.peak_power_timestamp is not None:
-            self.database.execute(
-                "INSERT OR REPLACE INTO meter_peaks VALUES(?, ?)",
-                (msg.peak_power_timestamp, msg.peak_power)
-            )
-        self.database.commit()
-
-        # calculate slower data
-        self.tracker.process_message(self.database, msg)
-
-        # broadcast to sockets
         with self.lock:
+            print(f"Processing message {msg}")
+
+            # add to database
+            if msg.timestamp is not None:
+                self.database.execute(
+                    "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?)",
+                    (msg.timestamp, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3),
+                )
+            if msg.peak_power_timestamp is not None:
+                self.database.execute(
+                    "INSERT OR REPLACE INTO meter_peaks VALUES(?, ?)",
+                    (msg.peak_power_timestamp, msg.peak_power)
+                )
+            self.database.commit()
+
+            # calculate slower data
+            self.tracker.process_message(self.database, msg)
+
+            # broadcast update series to sockets
+            update_series = Series([msg.timestamp], [msg.instant_power_1], [msg.instant_power_2], [msg.instant_power_3])
             for queue in self.broadcast_queues:
-                queue.sync_q.put(msg)
+                queue.sync_q.put(update_series)
 
     def add_broadcast_queue_get_data(self, queue: JQueue) -> Series:
         with self.lock:
@@ -200,17 +202,24 @@ async def handler(websocket, store: DataStore):
     print(f"Accepted connection from {websocket.remote_address}")
 
     queue = JQueue()
-    initial_history = store.add_broadcast_queue_get_data(queue)
 
     try:
-        message = {"type": "initial", "series": initial_history.to_json()}
-        print(f"Sending {message} to {websocket.remote_address}")
+        initial_history = store.add_broadcast_queue_get_data(queue)
+        response = {
+            "type": "initial",
+            "history_window_size": store.history_window_size,
+            "series": initial_history.to_json()
+        }
+
+        print(f"Sending {response} to {websocket.remote_address}")
+        await websocket.send(json.dumps(response))
 
         while True:
             update_series = await queue.async_q.get()
-            message = {"type": "update", "series": update_series.to_json()}
-            print(f"Sending {message} to {websocket.remote_address}")
-            await websocket.send(json.dumps(message))
+            response = {"type": "update", "series": update_series.to_json()}
+
+            print(f"Sending {response} to {websocket.remote_address}")
+            await websocket.send(json.dumps(response))
 
     # TODO add other exceptions that should be ignored
     except ConnectionClosedOK:
@@ -239,7 +248,7 @@ def main():
     message_queue = QQueue()
 
     database = sqlite3.connect("dummy.db")
-    store = DataStore(database)
+    store = DataStore(database, 60)
 
     if use_dummy:
         Thread(target=run_dummy_parser, args=(message_queue,)).start()

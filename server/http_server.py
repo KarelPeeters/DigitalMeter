@@ -3,6 +3,7 @@ import http.server
 import mimetypes
 import os
 import socket
+import sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from http.server import test as http_server_test
@@ -36,7 +37,9 @@ def run_http_server(directory):
 
 
 def main():
-    run_http_server(os.getcwd())
+    assert len(sys.argv) == 2, "Expected single argument for the path of the directory to server"
+    print("Found files", os.listdir(sys.argv[1]))
+    run_http_server(sys.argv[1])
 
 
 if __name__ == '__main__':
