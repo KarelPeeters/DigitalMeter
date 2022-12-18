@@ -1,6 +1,6 @@
 class State {
     constructor() {
-        this.data = new DataState()
+        this.multi_series = new MultiSeries()
 
         this.socket = null;
         this.timeout = null;
@@ -35,7 +35,7 @@ class State {
     on_message(message) {
         this.reset_timeout();
         console.log("Received message '" + message.data + "'");
-        on_message(message.data, this.data);
+        on_message(this.multi_series, message.data)
     }
 }
 
@@ -45,62 +45,61 @@ window.addEventListener("DOMContentLoaded", () => {
     state = new State();
 });
 
-class DataState {
+class Series {
     constructor() {
-        this.history_window_size = 10
-
-        this.last_timestamp = 0
-        this.data_t = []
-        this.data_y_all = []
+        this.window_size = 0
+        this.timestamps = []
+        this.all_values = []
     }
 
-    push_series(series) {
-        let data_t = this.data_t;
-        let data_y_all = this.data_y_all;
+    push_update(series_data) {
+        let timestamps = this.timestamps;
+        let all_values = this.all_values;
+        this.window_size = series_data["window_size"];
 
         // append data to state
-        for (let i = 0; i < series["timestamps"].length; i++) {
+        for (let i = 0; i < series_data["timestamps"].length; i++) {
 
-            let ts = new Date(series["timestamps"][i] * 1000);
-            data_t.push(ts);
+            let ts = new Date(series_data["timestamps"][i] * 1000);
+            timestamps.push(ts);
 
             // remember latest timestamp
             this.last_timestamp = ts;
 
-            for (const [key, values] of Object.entries(series["values"])) {
-                if (!(key in data_y_all)) {
-                    data_y_all[key] = [];
+            for (const [key, values] of Object.entries(series_data["values"])) {
+                if (!(key in all_values)) {
+                    all_values[key] = [];
                 }
-                data_y_all[key].push(values[i]);
+                all_values[key].push(values[i]);
             }
         }
 
         // remove old data
-        if (data_t.length >= 1) {
-            let index = data_t.findIndex(element => {
-                return (this.last_timestamp - element) < this.history_window_size * 1000;
+        if (timestamps.length >= 1) {
+            let index = timestamps.findIndex(element => {
+                return (this.last_timestamp - element) < this.window_size * 1000;
             });
 
             if (index >= 0) {
-                data_t.splice(0, index);
-                for (const key of Object.keys(data_y_all)) {
-                    data_y_all[key].splice(0, index);
+                timestamps.splice(0, index);
+                for (const key of Object.keys(all_values)) {
+                    all_values[key].splice(0, index);
                 }
             }
         }
 
-        for (const array of Object.values(data_y_all)) {
-            console.assert(data_t.length === array.length);
+        for (const array of Object.values(all_values)) {
+            console.assert(timestamps.length === array.length);
         }
     }
 
     plot_args() {
         let plot_data = []
 
-        for (const key of Object.keys(this.data_y_all)) {
+        for (const key of Object.keys(this.all_values)) {
             plot_data.push({
-                x: this.data_t,
-                y: this.data_y_all[key],
+                x: this.timestamps,
+                y: this.all_values[key],
                 name: key,
                 mode: "lines",
             })
@@ -108,30 +107,53 @@ class DataState {
 
         let plot_layout = {
             margin: {t: 0},
-            xaxis: {type: "date", range: [this.last_timestamp - this.history_window_size * 1000, this.last_timestamp]},
+            xaxis: {type: "date", range: [this.last_timestamp - this.window_size * 1000, this.last_timestamp]},
         }
 
         return {plot_data, plot_layout}
     }
 }
 
-function on_message(msg_str, data) {
+class MultiSeries {
+    constructor() {
+        this.all_series = {}
+    }
+
+    push_update(all_series_data) {
+        for (const [key, series_data] of Object.entries(all_series_data)) {
+            if (!(key in this.all_series)) {
+                this.all_series[key] = new Series();
+            }
+            this.all_series[key].push_update(series_data)
+        }
+    }
+}
+
+function on_message(multi_series, msg_str) {
     let msg_json = JSON.parse(msg_str);
     let msg_type = msg_json["type"];
 
-
     if (msg_type === "initial" || msg_type === "update") {
-        if ("history_window_size" in msg_json) {
-            data.history_window_size = msg_json["history_window_size"];
+        // store the data
+        multi_series.push_update(msg_json["series"]);
+
+        // plot the data
+        for (const [key, series] of Object.entries(multi_series.all_series)) {
+            let plot_id = "plot_" + key;
+
+            // create the plot if necessary
+            let plot = document.getElementById(plot_id);
+            if (plot === null) {
+                plot = document.createElement("div")
+                plot.setAttribute("id", plot_id)
+                document.getElementById("plots").appendChild(plot)
+            }
+
+            // update the plot
+            let {plot_data, plot_layout} = series.plot_args();
+            Plotly.newPlot(plot, plot_data, plot_layout);
         }
 
-        // store the data
-        data.push_series(msg_json["series"]);
-
-        // update the plot
-        let {plot_data, plot_layout} = data.plot_args();
-        const plot = document.getElementById("plot");
-        Plotly.newPlot(plot, plot_data, plot_layout);
     } else {
         console.log("Unknown message type " + msg_type)
     }

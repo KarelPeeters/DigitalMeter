@@ -33,6 +33,7 @@ class Series:
 
     def to_json(self):
         return {
+            "window_size": self.window_size,
             "timestamps": self.timestamps,
             "values": {
                 "p1": self.instant_power_1,
@@ -77,6 +78,31 @@ class Series:
 
 
 @dataclass
+class MultiSeries:
+    short: Series
+    long: Series
+
+    @staticmethod
+    def empty(short_window_size: int, long_window_size: int):
+        return MultiSeries(
+            Series.empty(short_window_size),
+            Series.empty(long_window_size),
+        )
+
+    def to_json(self):
+        return {
+            "short": self.short.to_json(),
+            "long": self.long.to_json(),
+        }
+
+    def clone(self):
+        return MultiSeries(
+            short=self.short.clone(),
+            long=self.long.clone(),
+        )
+
+
+@dataclass
 class BroadcastMessage:
     fast: Series
     medium: Series
@@ -90,8 +116,7 @@ class Tracker:
         self.history_window_size = history_window_size
         self.last_timestamp: Optional[int] = None
 
-        self.short_history = Series.empty(60)
-        self.long_history = Series.empty(60 * 60)
+        self.series = MultiSeries.empty(20, 8*20)
 
     def process_message(self, database: Connection, msg: Message):
         is_first = self.last_timestamp is None
@@ -103,29 +128,39 @@ class Tracker:
                 "SELECT timestamp, instant_power_1, instant_power_2, instant_power_3 from meter_samples "
                 "WHERE (timestamp > ?)"
                 "ORDER BY timestamp",
-                ((msg.timestamp - self.short_history.window_size),),
+                ((msg.timestamp - self.series.short.window_size),),
             ).fetchall()
-            self.short_history.extend_items(short_history_items)
+            self.series.short.extend_items(short_history_items)
 
         # append the real message
-        self.short_history.append_msg(msg)
+        self.series.short.append_msg(msg)
 
         # TODO implement caching for this, or at least don't do it every time
-        self.long_history = Series.empty(self.long_history.window_size)
+        self.series.long = Series.empty(self.series.long.window_size)
 
         long_history_items = database.execute(
             "SELECT CAST(strftime('%s', strftime('%Y-%m-%d %H:%M:00', timestamp, 'unixepoch')) as INTEGER), "
             "AVG(instant_power_1), AVG(instant_power_2), AVG(instant_power_3) "
             "FROM meter_samples "
+            "WHERE timestamp > ?"
             "GROUP BY strftime('%Y-%m-%d %H:%M', timestamp, 'unixepoch') "
-            "ORDER BY strftime('%Y-%m-%d %H:%M', timestamp, 'unixepoch')"
+            "ORDER BY strftime('%Y-%m-%d %H:%M', timestamp, 'unixepoch')",
+            (self.last_timestamp - self.series.long.window_size,)
         )
-        self.long_history.extend_items(long_history_items)
+        self.series.long.extend_items(long_history_items)
 
-        print(self.long_history)
+        print(f"Long hist size: {len(self.series.long.timestamps)}")
 
-    def get_history(self):
-        return self.short_history.clone()
+        return MultiSeries(
+            Series(
+                self.series.short.window_size,
+                [msg.timestamp], [msg.instant_power_1], [msg.instant_power_2], [msg.instant_power_3]
+            ),
+            Series(self.series.long.window_size, [], [], [], []),
+        )
+
+    def get_history(self) -> MultiSeries:
+        return self.series.clone()
 
 
 class DataStore:
@@ -158,7 +193,7 @@ class DataStore:
             print(f"Processing message {msg}")
 
             # update trackers
-            self.tracker.process_message(self.database, msg)
+            update_series = self.tracker.process_message(self.database, msg)
 
             # add to database
             # do this after updating the trackers so we don't count the first value twice
@@ -175,14 +210,10 @@ class DataStore:
             self.database.commit()
 
             # broadcast update series to sockets
-            update_series = Series(
-                self.tracker.short_history.window_size,
-                [msg.timestamp], [msg.instant_power_1], [msg.instant_power_2], [msg.instant_power_3]
-            )
             for queue in self.broadcast_queues:
                 queue.sync_q.put(update_series)
 
-    def add_broadcast_queue_get_data(self, queue: JQueue) -> Series:
+    def add_broadcast_queue_get_data(self, queue: JQueue) -> MultiSeries:
         with self.lock:
             self.broadcast_queues.add(queue)
             return self.tracker.get_history()
@@ -212,11 +243,10 @@ async def handler(websocket, store: DataStore):
     queue = JQueue()
 
     try:
-        initial_history = store.add_broadcast_queue_get_data(queue)
+        series = store.add_broadcast_queue_get_data(queue)
         response = {
             "type": "initial",
-            "history_window_size": store.history_window_size,
-            "series": initial_history.to_json()
+            "series": series.to_json()
         }
 
         print(f"Sending {response} to {websocket.remote_address}")
