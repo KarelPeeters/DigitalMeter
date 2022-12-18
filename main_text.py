@@ -24,7 +24,7 @@ def main():
             raw_msg = parser.push_line(line)
 
             if raw_msg is not None:
-                msg = Message(raw_msg)
+                msg = Message.from_raw(raw_msg)
 
                 timestamp.append(msg.timestamp.timestamp.date_time)
                 instant_power_1.append(msg.instant_power_1)

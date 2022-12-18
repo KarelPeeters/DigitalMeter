@@ -41,7 +41,7 @@ def serial_generator(broadcast: Broadcast, log):
         raw_msg = parser.push_line(line_str)
 
         if raw_msg is not None:
-            msg = Message(raw_msg)
+            msg = Message.from_raw(raw_msg)
             values = {
                 "P1 [W]": msg.instant_power_1,
                 "P2 [W]": msg.instant_power_2,

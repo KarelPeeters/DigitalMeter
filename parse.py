@@ -120,19 +120,29 @@ class Message:
     peak_power: float
     peak_power_timestamp: MaybeTimeStamp
 
-    def __init__(self, msg: RawMessage):
+    @staticmethod
+    def from_raw(msg: RawMessage):
         def map_value(x, f, d):
             return f(x.value) if x is not None else d
 
-        self.timestamp = map_value(msg.values.get("0-0:1.0.0"), parse_timestamp, MaybeTimeStamp(None))
+        timestamp = map_value(msg.values.get("0-0:1.0.0"), parse_timestamp, MaybeTimeStamp(None))
 
-        self.instant_power_1 = map_value(msg.values.get("1-0:21.7.0"), parse_power, math.nan)
-        self.instant_power_2 = map_value(msg.values.get("1-0:41.7.0"), parse_power, math.nan)
-        self.instant_power_3 = map_value(msg.values.get("1-0:61.7.0"), parse_power, math.nan)
+        instant_power_1 = map_value(msg.values.get("1-0:21.7.0"), parse_power, math.nan)
+        instant_power_2 = map_value(msg.values.get("1-0:41.7.0"), parse_power, math.nan)
+        instant_power_3 = map_value(msg.values.get("1-0:61.7.0"), parse_power, math.nan)
 
-        peak_power = msg.values.get("1-0:1.6.0")
-        self.peak_power = map_value(peak_power, parse_power, math.nan)
-        self.peak_power_timestamp = peak_power.timestamp if peak_power is not None else MaybeTimeStamp(None)
+        peak_power_value = msg.values.get("1-0:1.6.0")
+        peak_power = map_value(peak_power_value, parse_power, math.nan)
+        peak_power_timestamp = peak_power_value.timestamp if peak_power_value is not None else MaybeTimeStamp(None)
+
+        return Message(
+            timestamp=timestamp,
+            instant_power_1=instant_power_1,
+            instant_power_2=instant_power_2,
+            instant_power_3=instant_power_3,
+            peak_power=peak_power,
+            peak_power_timestamp=peak_power_timestamp,
+        )
 
 
 class Parser:

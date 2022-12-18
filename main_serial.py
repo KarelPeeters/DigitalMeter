@@ -32,7 +32,7 @@ def main():
         raw_msg = parser.push_line(line_str)
 
         if raw_msg is not None:
-            msg = Message(raw_msg)
+            msg = Message.from_raw(raw_msg)
             print(msg)
 
 
