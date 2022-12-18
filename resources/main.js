@@ -108,7 +108,7 @@ class DataState {
 
         let plot_layout = {
             margin: {t: 0},
-            xaxis: {type: "date", range: [this.last_timestamp - this.history_window * 1000, this.last_timestamp]},
+            xaxis: {type: "date", range: [this.last_timestamp - this.history_window_size * 1000, this.last_timestamp]},
         }
 
         return {plot_data, plot_layout}
