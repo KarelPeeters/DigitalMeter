@@ -5,7 +5,7 @@ import os
 import socket
 import sys
 from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 from http.server import test as http_server_test
 
 

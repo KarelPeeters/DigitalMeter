@@ -48,6 +48,7 @@ if __name__ == '__main__':
         with open("log.txt", "a") as log:
             run_serial_parser(queue, log)
 
+
     Thread(target=run_http_server, args=("resources",)).start()
 
     run_socket_server(generator, "data.db")
