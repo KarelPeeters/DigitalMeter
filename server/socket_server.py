@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from queue import Queue as QQueue
 from sqlite3 import Connection
 from threading import Thread, Lock
-from typing import Set, List, Optional, Callable
+from typing import Set, Optional, Callable, List
 
 import websockets
 from janus import Queue as JQueue
@@ -21,10 +21,15 @@ from parse import Message
 
 @dataclass
 class Series:
+    window_size: int
     timestamps: List[int]
     instant_power_1: List[float]
     instant_power_2: List[float]
     instant_power_3: List[float]
+
+    @staticmethod
+    def empty(window_size):
+        return Series(window_size, [], [], [], [])
 
     def to_json(self):
         return {
@@ -38,14 +43,22 @@ class Series:
 
     def clone(self):
         return Series(
+            self.window_size,
             list(self.timestamps),
             list(self.instant_power_1),
             list(self.instant_power_2),
             list(self.instant_power_3),
         )
 
-    def drop_before(self, timestamp: int):
-        kept_index = next((i for i, t in enumerate(self.timestamps) if t - timestamp > 0), 0)
+    def append(self, timestamp, p1, p2, p3):
+        # append new values
+        self.timestamps.append(timestamp)
+        self.instant_power_1.append(p1)
+        self.instant_power_2.append(p2)
+        self.instant_power_3.append(p3)
+
+        # drop older values
+        kept_index = next((i for i, t in enumerate(self.timestamps) if timestamp - t < self.window_size), 0)
         arrays = [self.timestamps, self.instant_power_1, self.instant_power_2, self.instant_power_3]
         for arr in arrays:
             del arr[:kept_index]
@@ -65,7 +78,8 @@ class Tracker:
         self.history_window_size = history_window_size
         self.last_timestamp: Optional[int] = None
 
-        self.history = Series([], [], [], [])
+        self.short_history = Series(60, [], [], [], [])
+        # self.long_history = Series(60 * 60, [], [], [], [])
 
     def process_message(self, database: Connection, msg: Message):
         is_first = self.last_timestamp is None
@@ -81,25 +95,14 @@ class Tracker:
                 (first_timestamp,),
             ).fetchall()
 
-            print(f"Fetched {len(history_items)} history points")
-
             for (prev_timestamp, prev_p1, prev_p2, prev_p3) in history_items:
-                self.history.timestamps.append(prev_timestamp)
-                self.history.instant_power_1.append(prev_p1)
-                self.history.instant_power_2.append(prev_p2)
-                self.history.instant_power_3.append(prev_p3)
+                self.short_history.append(prev_timestamp, prev_p1, prev_p2, prev_p3)
 
-        # append history
-        self.history.timestamps.append(msg.timestamp)
-        self.history.instant_power_1.append(msg.instant_power_1)
-        self.history.instant_power_2.append(msg.instant_power_2)
-        self.history.instant_power_3.append(msg.instant_power_3)
-
-        # cap length
-        self.history.drop_before(first_timestamp)
+        # append real message
+        self.short_history.append(msg.timestamp, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3)
 
     def get_history(self):
-        return self.history.clone()
+        return self.short_history.clone()
 
 
 class DataStore:
@@ -131,7 +134,11 @@ class DataStore:
         with self.lock:
             print(f"Processing message {msg}")
 
+            # update trackers
+            self.tracker.process_message(self.database, msg)
+
             # add to database
+            # do this after updating the trackers so we don't count the first value twice
             if msg.timestamp is not None:
                 self.database.execute(
                     "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?)",
@@ -144,11 +151,11 @@ class DataStore:
                 )
             self.database.commit()
 
-            # calculate slower data
-            self.tracker.process_message(self.database, msg)
-
             # broadcast update series to sockets
-            update_series = Series([msg.timestamp], [msg.instant_power_1], [msg.instant_power_2], [msg.instant_power_3])
+            update_series = Series(
+                self.tracker.short_history.window_size,
+                [msg.timestamp], [msg.instant_power_1], [msg.instant_power_2], [msg.instant_power_3]
+            )
             for queue in self.broadcast_queues:
                 queue.sync_q.put(update_series)
 
