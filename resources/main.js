@@ -80,7 +80,9 @@ class Series {
                 return (this.last_timestamp - element) < this.window_size * 1000;
             });
 
-            if (index >= 0) {
+            // check if we actually found an index (!= -1) and that we leave one value (>= 1)
+            if (index >= 1) {
+                index -= 1;
                 timestamps.splice(0, index);
                 for (const key of Object.keys(all_values)) {
                     all_values[key].splice(0, index);
