@@ -36,6 +36,20 @@ class Series:
             }
         }
 
+    def clone(self):
+        return Series(
+            list(self.timestamps),
+            list(self.instant_power_1),
+            list(self.instant_power_2),
+            list(self.instant_power_3),
+        )
+
+    def drop_before(self, timestamp: int):
+        kept_index = next((i for i, t in enumerate(self.timestamps) if t - timestamp > 0), 0)
+        arrays = [self.timestamps, self.instant_power_1, self.instant_power_2, self.instant_power_3]
+        for arr in arrays:
+            del arr[:kept_index]
+
 
 @dataclass
 class BroadcastMessage:
@@ -43,6 +57,8 @@ class BroadcastMessage:
     medium: Series
     slow: Series
 
+
+# TODO send nan for missing values instead of nothing, so JS doesn't just interpolate
 
 class Tracker:
     def __init__(self, history_window_size: int):
@@ -80,12 +96,10 @@ class Tracker:
         self.history.instant_power_3.append(msg.instant_power_3)
 
         # cap length
-        kept_index = next((i for i, t in enumerate(self.history.timestamps) if t - first_timestamp > 0), 0)
-        print(f"Dropping {kept_index} items")
-        arrays = [self.history.timestamps, self.history.instant_power_1, self.history.instant_power_2,
-                  self.history.instant_power_3]
-        for arr in arrays:
-            del arr[:kept_index]
+        self.history.drop_before(first_timestamp)
+
+    def get_history(self):
+        return self.history.clone()
 
 
 class DataStore:
@@ -141,7 +155,7 @@ class DataStore:
     def add_broadcast_queue_get_data(self, queue: JQueue) -> Series:
         with self.lock:
             self.broadcast_queues.add(queue)
-            return self.tracker.history
+            return self.tracker.get_history()
 
     def remove_broadcast_queue(self, queue: JQueue):
         with self.lock:
