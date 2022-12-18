@@ -10,14 +10,13 @@ from dataclasses import dataclass
 from queue import Queue as QQueue
 from sqlite3 import Connection
 from threading import Thread, Lock
-from typing import Set, List, Optional
+from typing import Set, List, Optional, Callable
 
-import serial
 import websockets
 from janus import Queue as JQueue
 from websockets.exceptions import ConnectionClosedOK
 
-from parse import Message, Parser
+from parse import Message
 
 
 @dataclass
@@ -149,41 +148,6 @@ class DataStore:
             self.broadcast_queues.remove(queue)
 
 
-def run_serial_parser(message_queue: QQueue, log):
-    port = serial.Serial(
-        port='/dev/ttyS0',
-        baudrate=115200,
-        parity=serial.PARITY_NONE,
-        stopbits=serial.STOPBITS_ONE,
-        bytesize=serial.EIGHTBITS,
-        timeout=10,
-    )
-    parser = Parser()
-
-    while True:
-        line = port.readline()
-        if len(line) == 0:
-            print("Timeout")
-            parser.reset()
-            continue
-
-        try:
-            line_str = line.decode()
-        except UnicodeDecodeError:
-            print("Unicode decode error")
-            parser.reset()
-            continue
-
-        if log is not None:
-            log.write(line_str)
-
-        raw_msg = parser.push_line(line_str)
-
-        if raw_msg is not None:
-            msg = Message.from_raw(raw_msg)
-            message_queue.put(msg)
-
-
 def run_dummy_parser(message_queue: QQueue):
     for _ in itertools.count():
         time.sleep(1)
@@ -242,25 +206,18 @@ def run_message_processor(store: DataStore, message_queue: QQueue):
         store.process_message(message)
 
 
-def main():
-    use_dummy = True
-
+def run_socket_server(generator: Callable[[QQueue], None], database_path: str, ):
     message_queue = QQueue()
 
-    database = sqlite3.connect("dummy.db")
+    database = sqlite3.connect(database_path)
     store = DataStore(database, 60)
 
-    if use_dummy:
-        Thread(target=run_dummy_parser, args=(message_queue,)).start()
-    else:
-        with open("log.txt", "a") as log:
-            Thread(target=run_serial_parser, args=(message_queue, log)).start()
-
+    Thread(target=generator, args=(message_queue,)).start()
     Thread(target=run_asyncio_main, args=(store,)).start()
 
     run_message_processor(store, message_queue)
 
 
 if __name__ == '__main__':
-    main()
+    run_socket_server(run_dummy_parser, "dummy.db")
     print("Main has ended")
