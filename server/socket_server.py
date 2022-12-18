@@ -50,18 +50,30 @@ class Series:
             list(self.instant_power_3),
         )
 
-    def append(self, timestamp, p1, p2, p3):
-        # append new values
-        self.timestamps.append(timestamp)
-        self.instant_power_1.append(p1)
-        self.instant_power_2.append(p2)
-        self.instant_power_3.append(p3)
+    def _drop_old(self):
+        if len(self.timestamps) == 0:
+            return
 
-        # drop older values
-        kept_index = next((i for i, t in enumerate(self.timestamps) if timestamp - t < self.window_size), 0)
+        last = self.timestamps[-1]
+        kept_index = next((i for i, t in enumerate(self.timestamps) if last - t < self.window_size), 0)
         arrays = [self.timestamps, self.instant_power_1, self.instant_power_2, self.instant_power_3]
         for arr in arrays:
             del arr[:kept_index]
+
+    def extend_items(self, items):
+        for t, p1, p2, p3 in items:
+            self.timestamps.append(t)
+            self.instant_power_1.append(p1)
+            self.instant_power_2.append(p2)
+            self.instant_power_3.append(p3)
+        self._drop_old()
+
+    def append_msg(self, msg: Message):
+        self.timestamps.append(msg.timestamp)
+        self.instant_power_1.append(msg.instant_power_1)
+        self.instant_power_2.append(msg.instant_power_2)
+        self.instant_power_3.append(msg.instant_power_3)
+        self._drop_old()
 
 
 @dataclass
@@ -78,29 +90,39 @@ class Tracker:
         self.history_window_size = history_window_size
         self.last_timestamp: Optional[int] = None
 
-        self.short_history = Series(60, [], [], [], [])
-        # self.long_history = Series(60 * 60, [], [], [], [])
+        self.short_history = Series.empty(60)
+        self.long_history = Series.empty(60 * 60)
 
     def process_message(self, database: Connection, msg: Message):
         is_first = self.last_timestamp is None
         self.last_timestamp = msg.timestamp
 
-        first_timestamp = msg.timestamp - self.history_window_size
-
         if is_first:
             # load initial history from database
-            history_items = database.execute(
+            short_history_items = database.execute(
                 "SELECT timestamp, instant_power_1, instant_power_2, instant_power_3 from meter_samples "
                 "WHERE (timestamp > ?)"
                 "ORDER BY timestamp",
-                (first_timestamp,),
+                ((msg.timestamp - self.short_history.window_size),),
             ).fetchall()
+            self.short_history.extend_items(short_history_items)
 
-            for (prev_timestamp, prev_p1, prev_p2, prev_p3) in history_items:
-                self.short_history.append(prev_timestamp, prev_p1, prev_p2, prev_p3)
+        # append the real message
+        self.short_history.append_msg(msg)
 
-        # append real message
-        self.short_history.append(msg.timestamp, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3)
+        # TODO implement caching for this, or at least don't do it every time
+        self.long_history = Series.empty(self.long_history.window_size)
+
+        long_history_items = database.execute(
+            "SELECT CAST(strftime('%s', strftime('%Y-%m-%d %H:%M:00', timestamp, 'unixepoch')) as INTEGER), "
+            "AVG(instant_power_1), AVG(instant_power_2), AVG(instant_power_3) "
+            "FROM meter_samples "
+            "GROUP BY strftime('%Y-%m-%d %H:%M', timestamp, 'unixepoch') "
+            "ORDER BY strftime('%Y-%m-%d %H:%M', timestamp, 'unixepoch')"
+        )
+        self.long_history.extend_items(long_history_items)
+
+        print(self.long_history)
 
     def get_history(self):
         return self.short_history.clone()
