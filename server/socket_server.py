@@ -127,9 +127,9 @@ class Tracker:
 
         self.multi_series = MultiSeries({
             "minute": Series.empty(60, 1),
-            "hour": Series.empty(60 * 60, 60),
-            "day": Series.empty(24 * 60 * 60, 24 * 60),
-            "week": Series.empty(7 * 24 * 60 * 60, 7 * 24 * 60),
+            "hour": Series.empty(60 * 60, 10),
+            "day": Series.empty(24 * 60 * 60, 24 * 10),
+            "week": Series.empty(7 * 24 * 60 * 60, 7 * 24 * 10),
         })
 
     def process_message(self, database: Connection, msg: Message):
