@@ -140,8 +140,8 @@ class Tracker:
         self.last_timestamp: Optional[int] = None
 
         self.series = MultiSeries(
-            Series.empty(20, 1),
-            Series.empty(200, 4),
+            Series.empty(60, 1),
+            Series.empty(60*60, 60),
         )
 
     def process_message(self, database: Connection, msg: Message):
