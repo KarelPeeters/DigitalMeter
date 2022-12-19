@@ -126,8 +126,10 @@ class Tracker:
         self.last_timestamp: Optional[int] = None
 
         self.multi_series = MultiSeries({
-            "short": Series.empty(60, 1),
-            "long": Series.empty(60 * 60, 60),
+            "minute": Series.empty(60, 1),
+            "hour": Series.empty(60 * 60, 60),
+            "day": Series.empty(24 * 60 * 60, 24 * 60),
+            "week": Series.empty(7 * 24 * 60 * 60, 7 * 24 * 60),
         })
 
     def process_message(self, database: Connection, msg: Message):
@@ -247,13 +249,15 @@ async def handler(websocket, store: DataStore):
     try:
         initial_series: MultiSeries = store.add_broadcast_queue_get_data(queue)
         response = {"type": "initial", "series": initial_series.to_json()}
-        print(f"Sending response type 'initial' with series {list(initial_series.map.keys())} to {websocket.remote_address}")
+        print(
+            f"Sending response type 'initial' with series {list(initial_series.map.keys())} to {websocket.remote_address}")
         await websocket.send(json.dumps(response))
 
         while True:
             update_series: MultiSeries = await queue.async_q.get()
             response = {"type": "update", "series": update_series.to_json()}
-            print(f"Sending response type 'update' with series {list(update_series.map.keys())} to {websocket.remote_address}")
+            print(
+                f"Sending response type 'update' with series {list(update_series.map.keys())} to {websocket.remote_address}")
             await websocket.send(json.dumps(response))
 
     # TODO add other exceptions that should be ignored
