@@ -158,18 +158,6 @@ class Tracker:
             self.series.long.window_size, self.series.long.bucket_size
         )
 
-        # TODO get this to properly match the factors used instead of just mucking with time formatting
-        #  maybe something with abs and mod can do the trick?
-        # TODO we need separate window_size and bucket_size
-
-        # return MultiSeries(
-        #     Series(
-        #         self.series.short.window_size,
-        #         [msg.timestamp], [msg.instant_power_1], [msg.instant_power_2], [msg.instant_power_3]
-        #     ),
-        #     Series(self.series.long.window_size, [], [], [], []),
-        # )
-
         # todo we're sending a lot of duplicate values here...
         return self.series.clone()
 
