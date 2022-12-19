@@ -57,9 +57,11 @@ class Series:
     def _drop_old(self):
         if len(self.timestamps) == 0:
             return
+        newest = self.timestamps[-1]
+        self.drop_before(newest - self.window_size)
 
-        last = self.timestamps[-1]
-        kept_index = next((i for i, t in enumerate(self.timestamps) if last - t < self.window_size), 0)
+    def drop_before(self, oldest):
+        kept_index = next((i for i, t in enumerate(self.timestamps) if t >= oldest), 0)
         arrays = [self.timestamps, self.instant_power_1, self.instant_power_2, self.instant_power_3]
         for arr in arrays:
             del arr[:kept_index]
@@ -97,14 +99,14 @@ class MultiSeries:
 
 # TODO send nan for missing values instead of nothing, so JS doesn't just interpolate
 
-def fetch_series(database: Connection, last_timestep: int, window_size: int, bucket_size: int) -> Series:
-    oldest = last_timestep // bucket_size * bucket_size - window_size - bucket_size
-    newest = last_timestep // bucket_size * bucket_size - bucket_size
+def bucket_bounds(window_size: int, bucket_size: int, timestamp: int) -> (int, int):
+    oldest = timestamp // bucket_size * bucket_size - window_size - bucket_size
+    newest = timestamp // bucket_size * bucket_size - bucket_size
+    return oldest, newest
 
-    print(f"last timestep: {last_timestep}")
-    print("fetching with args", (window_size, oldest))
 
-    items = database.execute(
+def fetch_series_items(database: Connection, bucket_size: int, oldest: int, newest: int):
+    return database.execute(
         "WITH const as (SELECT ? as bucket_size, ? as oldest, ? as newest) "
         "SELECT timestamp / bucket_size * bucket_size, "
         "AVG(instant_power_1),"
@@ -115,12 +117,7 @@ def fetch_series(database: Connection, last_timestep: int, window_size: int, buc
         "GROUP BY timestamp / bucket_size "
         "ORDER BY timestamp ",
         (bucket_size, oldest, newest)
-    )
-
-    series = Series.empty(window_size, bucket_size)
-    series.extend_items(items)
-
-    return series
+    ).fetchall()
 
 
 class Tracker:
@@ -134,18 +131,35 @@ class Tracker:
         })
 
     def process_message(self, database: Connection, msg: Message):
-        is_first = self.last_timestamp is None
+        prev_timestamp = self.last_timestamp
         self.last_timestamp = msg.timestamp
+
+        delta_multi_series = MultiSeries({})
 
         for key in self.multi_series.map:
             series = self.multi_series.map[key]
-            self.multi_series.map[key] = fetch_series(
-                database, self.last_timestamp,
-                series.window_size, series.bucket_size
-            )
+            curr_oldest, curr_newest = bucket_bounds(series.window_size, series.bucket_size, self.last_timestamp)
 
-        # todo we're sending a lot of duplicate values here...
-        return self.multi_series.clone()
+            if prev_timestamp is None:
+                # fetch the entire series
+                new_items = fetch_series_items(database, series.bucket_size, curr_oldest, curr_newest)
+            else:
+                # only fetch new buckets
+                _, prev_newest = bucket_bounds(series.window_size, series.bucket_size, prev_timestamp)
+                if curr_newest == prev_newest:
+                    continue
+                else:
+                    new_items = fetch_series_items(database, series.bucket_size, prev_newest, curr_newest)
+
+            # put into cached series
+            series.extend_items(new_items)
+
+            # put into delta series
+            delta_series = Series.empty(series.window_size, series.bucket_size)
+            delta_series.extend_items(new_items)
+            delta_multi_series.map[key] = delta_series
+
+        return delta_multi_series
 
     def get_history(self) -> MultiSeries:
         return self.multi_series.clone()
@@ -231,21 +245,15 @@ async def handler(websocket, store: DataStore):
     queue = JQueue()
 
     try:
-        series = store.add_broadcast_queue_get_data(queue)
-        response = {
-            "type": "initial",
-            "series": series.to_json()
-        }
-
-        print(f"Sending {response} to {websocket.remote_address}")
+        initial_series: MultiSeries = store.add_broadcast_queue_get_data(queue)
+        response = {"type": "initial", "series": initial_series.to_json()}
+        print(f"Sending response type 'initial' with series {list(initial_series.map.keys())} to {websocket.remote_address}")
         await websocket.send(json.dumps(response))
 
         while True:
-            update_series = await queue.async_q.get()
-            # TODO change back to "update"
-            response = {"type": "initial", "series": update_series.to_json()}
-
-            print(f"Sending {response} to {websocket.remote_address}")
+            update_series: MultiSeries = await queue.async_q.get()
+            response = {"type": "update", "series": update_series.to_json()}
+            print(f"Sending response type 'update' with series {list(update_series.map.keys())} to {websocket.remote_address}")
             await websocket.send(json.dumps(response))
 
     # TODO add other exceptions that should be ignored
