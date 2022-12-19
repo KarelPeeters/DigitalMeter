@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from queue import Queue as QQueue
 from sqlite3 import Connection
 from threading import Thread, Lock
-from typing import Set, Optional, Callable, List
+from typing import Set, Optional, Callable, List, Dict
 
 import websockets
 from janus import Queue as JQueue
@@ -82,32 +82,21 @@ class Series:
 
 @dataclass
 class MultiSeries:
-    short: Series
-    long: Series
+    map: Dict[str, Series]
 
     def to_json(self):
         return {
-            "short": self.short.to_json(),
-            "long": self.long.to_json(),
+            name: series.to_json() for name, series in self.map.items()
         }
 
     def clone(self):
-        return MultiSeries(
-            short=self.short.clone(),
-            long=self.long.clone(),
-        )
-
-
-@dataclass
-class BroadcastMessage:
-    fast: Series
-    medium: Series
-    slow: Series
+        return MultiSeries({
+            name: series.clone() for name, series in self.map.items()
+        })
 
 
 # TODO send nan for missing values instead of nothing, so JS doesn't just interpolate
 
-# TODO implement this is a lazy way
 def fetch_series(database: Connection, last_timestep: int, window_size: int, bucket_size: int) -> Series:
     oldest = last_timestep // bucket_size * bucket_size - window_size - bucket_size
     newest = last_timestep // bucket_size * bucket_size - bucket_size
@@ -139,30 +128,27 @@ class Tracker:
         self.history_window_size = history_window_size
         self.last_timestamp: Optional[int] = None
 
-        self.series = MultiSeries(
-            Series.empty(60, 1),
-            Series.empty(60*60, 60),
-        )
+        self.multi_series = MultiSeries({
+            "short": Series.empty(60, 1),
+            "long": Series.empty(60 * 60, 60),
+        })
 
     def process_message(self, database: Connection, msg: Message):
         is_first = self.last_timestamp is None
         self.last_timestamp = msg.timestamp
 
-        # TODO implement caching for this, or at least don't do it every time
-        self.series.short = fetch_series(
-            database, self.last_timestamp,
-            self.series.short.window_size, self.series.short.bucket_size
-        )
-        self.series.long = fetch_series(
-            database, self.last_timestamp,
-            self.series.long.window_size, self.series.long.bucket_size
-        )
+        for key in self.multi_series.map:
+            series = self.multi_series.map[key]
+            self.multi_series.map[key] = fetch_series(
+                database, self.last_timestamp,
+                series.window_size, series.bucket_size
+            )
 
         # todo we're sending a lot of duplicate values here...
-        return self.series.clone()
+        return self.multi_series.clone()
 
     def get_history(self) -> MultiSeries:
-        return self.series.clone()
+        return self.multi_series.clone()
 
 
 class DataStore:
