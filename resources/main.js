@@ -114,6 +114,8 @@ class Series {
             })
         }
 
+        this.data_revision += 1;
+
         obj.layout = {
             datarevision: this.data_revision,
             margin: {t: 0},
