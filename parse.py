@@ -126,7 +126,7 @@ class Message:
             instant_power_3=instant_power_3,
             peak_power=peak_power,
             peak_power_timestamp=peak_power_timestamp,
-            peak_power_timestamp_str=peak_power_value.timestamp_str
+            peak_power_timestamp_str=peak_power_value.timestamp_str if peak_power_value is not None else "unknown"
         )
 
 

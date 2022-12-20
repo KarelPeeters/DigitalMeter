@@ -179,6 +179,7 @@ class DataStore:
         self.database.execute(
             "CREATE TABLE IF NOT EXISTS meter_samples("
             "    timestamp INTEGER PRIMARY KEY,"
+            "    timestamp_str TEXT,"
             "    instant_power_1 REAL,"
             "    instant_power_2 REAL,"
             "    instant_power_3 REAL"
@@ -187,6 +188,7 @@ class DataStore:
         self.database.execute(
             "CREATE TABLE IF NOT EXISTS meter_peaks("
             "    timestamp INTEGER PRIMARY KEY, "
+            "    timestamp_str TEXT,"
             "    instant_power_total REAL"
             ")"
         )
@@ -204,8 +206,8 @@ class DataStore:
                 )
             if msg.peak_power_timestamp is not None:
                 self.database.execute(
-                    "INSERT OR REPLACE INTO meter_peaks VALUES(?, ?)",
-                    (msg.peak_power_timestamp, msg.peak_power)
+                    "INSERT OR REPLACE INTO meter_peaks VALUES(?, ?, ?)",
+                    (msg.peak_power_timestamp, msg.peak_power_timestamp_str, msg.peak_power)
                 )
             self.database.commit()
 
