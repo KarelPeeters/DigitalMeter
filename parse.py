@@ -9,7 +9,7 @@ PATTERN_ITEM = re.compile(r"^(?P<key>\d+-\d+:\d+\.\d+\.\d+)(?P<full_value>.*)$")
 PATTERN_VALUE_TST = re.compile(r"^\((?P<timestamp>\d{12}[SW])\)\((?P<value>[^()]*)\)$")
 PATTERN_VALUE_SINGLE = re.compile(r"^\((?P<value>[^()]*)\)$")
 
-PATTERN_KWH = re.compile(r"(?P<number>\d+\.\d+)\*kW")
+PATTERN_KWH = re.compile(r"^(?P<number>\d+\.\d+)\*kW$")
 
 
 @dataclass
