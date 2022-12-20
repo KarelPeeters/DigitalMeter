@@ -80,7 +80,7 @@ def parse_timestamp(short_str: Optional[str]) -> int:
         not_dst = short_str.endswith("W")
         if not (dst or not_dst):
             raise ValueError()
-        tz = timezone(timedelta(hours=+1 if dst else +2))
+        tz = timezone(timedelta(hours=+2 if dst else +1))
 
         date_time = datetime.strptime(short_str[:-1], "%y%m%d%H%M%S").replace(tzinfo=tz)
         return int(date_time.timestamp())
