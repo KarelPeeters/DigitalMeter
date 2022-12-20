@@ -113,7 +113,7 @@ def fetch_series_items(database: Connection, bucket_size: int, oldest: int, newe
         "AVG(instant_power_2),"
         "AVG(instant_power_3)"
         "FROM meter_samples, const "
-        "WHERE timestamp / bucket_size * bucket_size BETWEEN oldest AND newest "
+        "WHERE oldest < timestamp / bucket_size * bucket_size AND timestamp / bucket_size * bucket_size <= newest "
         "GROUP BY timestamp / bucket_size "
         "ORDER BY timestamp ",
         (bucket_size, oldest, newest)
