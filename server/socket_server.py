@@ -199,8 +199,8 @@ class DataStore:
             # add to database
             if msg.timestamp is not None:
                 self.database.execute(
-                    "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?)",
-                    (msg.timestamp, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3),
+                    "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?, ?)",
+                    (msg.timestamp, msg.timestamp_str, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3),
                 )
             if msg.peak_power_timestamp is not None:
                 self.database.execute(
@@ -237,7 +237,7 @@ def run_dummy_parser(message_queue: QQueue):
         yb = math.sin(t * 0.2) + random.random() * 0.2
         yc = math.sin(t * 0.5) + random.random() * 0.05
 
-        msg = Message(int(t), ya, yb, yc, math.nan, 0)
+        msg = Message(int(t), "dummy", ya, yb, yc, math.nan, 0)
         message_queue.put(msg)
 
 

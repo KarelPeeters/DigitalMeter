@@ -16,22 +16,24 @@ PATTERN_KWH = re.compile(r"^(?P<number>\d+\.\d+)\*kW$")
 class MessageValue:
     value: str
     timestamp: int
+    timestamp_str: str
 
     @staticmethod
     def parse(full_value: str):
         m = re.match(PATTERN_VALUE_TST, full_value)
         if m:
-            timestamp = parse_timestamp(m.groupdict()["timestamp"])
+            timestamp_str = m.groupdict()["timestamp"]
+            timestamp = parse_timestamp(timestamp_str)
             value = m.groupdict()["value"]
 
-            return MessageValue(value, timestamp)
+            return MessageValue(value, timestamp, timestamp_str)
 
         m = re.match(PATTERN_VALUE_SINGLE, full_value)
         if m:
             value = m.groupdict()["value"]
-            return MessageValue(value, 0)
+            return MessageValue(value, 0, "unknown")
 
-        return MessageValue(full_value, 0)
+        return MessageValue(full_value, 0, "unknown")
 
 
 class RawMessage:
@@ -92,18 +94,21 @@ def parse_timestamp(short_str: Optional[str]) -> int:
 @dataclass
 class Message:
     timestamp: int
+    timestamp_str: str
     instant_power_1: float
     instant_power_2: float
     instant_power_3: float
     peak_power: float
     peak_power_timestamp: int
+    peak_power_timestamp_str: str
 
     @staticmethod
     def from_raw(msg: RawMessage):
         def map_value(x, f, d):
             return f(x.value) if x is not None else d
 
-        timestamp = map_value(msg.values.get("0-0:1.0.0"), parse_timestamp, None)
+        timestamp_str = msg.values.get("0-0:1.0.0")
+        timestamp = map_value(timestamp_str, parse_timestamp, None)
 
         instant_power_1 = map_value(msg.values.get("1-0:21.7.0"), parse_power, math.nan)
         instant_power_2 = map_value(msg.values.get("1-0:41.7.0"), parse_power, math.nan)
@@ -115,11 +120,13 @@ class Message:
 
         return Message(
             timestamp=timestamp,
+            timestamp_str=timestamp_str.value if timestamp_str is not None else "unknown",
             instant_power_1=instant_power_1,
             instant_power_2=instant_power_2,
             instant_power_3=instant_power_3,
             peak_power=peak_power,
             peak_power_timestamp=peak_power_timestamp,
+            peak_power_timestamp_str=peak_power_value.timestamp_str
         )
 
 
