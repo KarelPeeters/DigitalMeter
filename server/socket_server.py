@@ -237,7 +237,7 @@ def run_dummy_parser(message_queue: QQueue):
         yb = math.sin(t * 0.2) + random.random() * 0.2
         yc = math.sin(t * 0.5) + random.random() * 0.05
 
-        msg = Message(int(t), "dummy", ya, yb, yc, math.nan, 0)
+        msg = Message(int(t), "dummy", ya, yb, yc, math.nan, 0, "dummy")
         message_queue.put(msg)
 
 
