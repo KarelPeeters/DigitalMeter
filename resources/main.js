@@ -50,6 +50,7 @@ class Series {
         this.window_size = 0
         this.timestamps = []
         this.all_values = []
+        this.data_revision = 0
     }
 
     push_update(series_data) {
@@ -95,11 +96,17 @@ class Series {
         }
     }
 
-    plot_args() {
-        let plot_data = []
+    plot_obj() {
+        let obj = {
+            data: [],
+            layout: {},
+            config: {},
+            frames: [],
+        }
 
+        // add data lines
         for (const key of Object.keys(this.all_values)) {
-            plot_data.push({
+            obj.data.push({
                 x: this.timestamps,
                 y: this.all_values[key],
                 name: key,
@@ -107,12 +114,13 @@ class Series {
             })
         }
 
-        let plot_layout = {
+        obj.layout = {
+            datarevision: this.data_revision,
             margin: {t: 0},
             xaxis: {type: "date", range: [this.last_timestamp - this.window_size * 1000, this.last_timestamp]},
-        }
+        };
 
-        return {plot_data, plot_layout}
+        return obj;
     }
 }
 
@@ -153,15 +161,24 @@ function on_message(multi_series, msg_str) {
 
             // create the plot if necessary
             let plot = document.getElementById(plot_id);
+            let first_time = false;
             if (plot === null) {
                 plot = document.createElement("div")
                 plot.setAttribute("id", plot_id)
                 document.getElementById("plots").appendChild(plot)
+                first_time = true;
             }
 
             // update the plot
-            let {plot_data, plot_layout} = series.plot_args();
-            Plotly.newPlot(plot, plot_data, plot_layout);
+            let plot_obj = series.plot_obj();
+
+            if (first_time) {
+                // noinspection JSUnresolvedFunction
+                Plotly.newPlot(plot, plot_obj);
+            } else {
+                // plot_obj.config["transition"] = {duration: 1000}
+                Plotly.react(plot, plot_obj);
+            }
         }
 
     } else {
