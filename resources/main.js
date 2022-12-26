@@ -97,16 +97,10 @@ class Series {
     }
 
     plot_obj() {
-        let obj = {
-            data: [],
-            layout: {},
-            config: {},
-            frames: [],
-        }
-
-        // add data lines
+        // data
+        let data = []
         for (const key of Object.keys(this.all_values)) {
-            obj.data.push({
+            data.push({
                 x: this.timestamps,
                 y: this.all_values[key],
                 name: key,
@@ -114,15 +108,25 @@ class Series {
             })
         }
 
+        // layout
         this.data_revision += 1;
-
-        obj.layout = {
+        let layout = {
             datarevision: this.data_revision,
             margin: {t: 0},
             xaxis: {type: "date", range: [this.last_timestamp - this.window_size * 1000, this.last_timestamp]},
         };
 
-        return obj;
+        // config
+        let config = {
+            staticPlot: true,
+        };
+
+        return {
+            data: data,
+            layout: layout,
+            config: config,
+            frames: [],
+        };
     }
 }
 
