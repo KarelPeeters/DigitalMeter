@@ -14,7 +14,7 @@ from typing import Set, Optional, Callable, List, Dict
 
 import websockets
 from janus import Queue as JQueue
-from websockets.exceptions import ConnectionClosedOK
+from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
 
 from parse import Message
 
@@ -262,9 +262,8 @@ async def handler(websocket, store: DataStore):
                 f"Sending response type 'update' with series {list(update_series.map.keys())} to {websocket.remote_address}")
             await websocket.send(json.dumps(response))
 
-    # TODO add other exceptions that should be ignored
-    except ConnectionClosedOK:
-        pass
+    except (ConnectionClosedError, ConnectionClosedOK):
+        print(f"Client disconnected {websocket.remote_address}")
     finally:
         store.remove_broadcast_queue(queue)
 
