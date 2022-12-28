@@ -51,6 +51,9 @@ class Series {
         this.timestamps = []
         this.all_values = []
         this.data_revision = 0
+
+        this.last_timestamp_int = 0
+        this.last_timestamp_date = new Date(0);
     }
 
     push_update(series_data) {
@@ -60,12 +63,23 @@ class Series {
 
         // append data to state
         for (let i = 0; i < series_data["timestamps"].length; i++) {
+            let ts_int = series_data["timestamps"][i];
 
-            let ts = new Date(series_data["timestamps"][i] * 1000);
-            timestamps.push(ts);
+            // add padding values if necessary
+            if (this.last_timestamp_int !== 0) {
+                for (let j = this.last_timestamp_int + 1; j < ts_int; j++) {
+                    timestamps.push(new Date(j * 1000));
+                    for (let values of Object.values(all_values)) {
+                        values.push(NaN);
+                    }
+                }
+            }
 
-            // remember latest timestamp
-            this.last_timestamp = ts;
+            // add the real values
+            let ts_date = new Date(ts_int * 1000);
+            this.last_timestamp_date = ts_date;
+            this.last_timestamp_int = ts_int;
+            timestamps.push(ts_date);
 
             for (const [key, values] of Object.entries(series_data["values"])) {
                 if (!(key in all_values)) {
@@ -78,7 +92,7 @@ class Series {
         // remove old data
         if (timestamps.length >= 1) {
             let index = timestamps.findIndex(element => {
-                return (this.last_timestamp - element) < this.window_size * 1000;
+                return (this.last_timestamp_date - element) < this.window_size * 1000;
             });
 
             // check if we actually found an index (!= -1) and that we leave one value (>= 1)
@@ -113,7 +127,7 @@ class Series {
         let layout = {
             datarevision: this.data_revision,
             margin: {t: 0},
-            xaxis: {type: "date", range: [this.last_timestamp - this.window_size * 1000, this.last_timestamp]},
+            xaxis: {type: "date", range: [this.last_timestamp_date - this.window_size * 1000, this.last_timestamp_date]},
         };
 
         // config
