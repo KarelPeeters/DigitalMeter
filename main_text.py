@@ -25,7 +25,7 @@ def main():
 
             raw_msg = parser.push_line(line)
 
-            if raw_msg is not None:
+            if raw_msg is not None and raw_msg.is_clean:
                 msg = Message.from_raw(raw_msg)
 
                 timestamp.append(datetime.fromtimestamp(msg.timestamp))

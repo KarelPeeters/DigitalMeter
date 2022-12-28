@@ -38,7 +38,7 @@ def run_serial_parser(message_queue: QQueue, log):
 
         raw_msg = parser.push_line(line_str)
 
-        if raw_msg is not None:
+        if raw_msg is not None and raw_msg.is_clean:
             msg = Message.from_raw(raw_msg)
             message_queue.put(msg)
 

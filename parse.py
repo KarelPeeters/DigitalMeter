@@ -39,6 +39,7 @@ class MessageValue:
 class RawMessage:
     def __init__(self, lines: List[str]):
         values = {}
+        is_clean = True
 
         for line in lines:
             if line.startswith("!"):
@@ -47,6 +48,7 @@ class RawMessage:
             m = PATTERN_ITEM.match(line)
             if not m:
                 print(f"WARNING: failed to match '{line}'")
+                is_clean = False
                 continue
 
             key = m.groupdict()["key"]
@@ -57,9 +59,11 @@ class RawMessage:
             if key in values:
                 # TODO just fail instead?
                 print(f"WARNING: overriding key '{key}'")
+                is_clean = False
             values[key] = value
 
         self.values = values
+        self.is_clean = is_clean
 
 
 def parse_power(s: Optional[str]) -> float:
