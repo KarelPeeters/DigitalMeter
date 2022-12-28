@@ -2,6 +2,10 @@ class State {
     constructor() {
         this.multi_series = new MultiSeries()
 
+        this.plot_style = "split"
+        document.getElementById("radio_split").addEventListener("change", e => this.on_plot_mode_changed(e))
+        document.getElementById("radio_total").addEventListener("change", e => this.on_plot_mode_changed(e))
+
         this.socket = null;
         this.timeout = null;
         this.reset_socket()
@@ -35,7 +39,22 @@ class State {
     on_message(message) {
         this.reset_timeout();
         console.log("Received message '" + message.data + "'");
-        on_message(this.multi_series, message.data)
+        let should_update = on_message(this.multi_series, message.data)
+
+        if (should_update) {
+            update_plots(this.multi_series, this.plot_style)
+        }
+    }
+
+    on_plot_mode_changed(e) {
+        let old_value = this.plot_style;
+        this.plot_style = e.target.value
+
+        console.log("Style changed to", this, this.plot_style)
+
+        if (this.plot_style !== old_value) {
+            update_plots(this.multi_series, this.plot_style)
+        }
     }
 }
 
@@ -114,16 +133,42 @@ class Series {
         }
     }
 
-    plot_obj() {
+    plot_obj(plot_style) {
         // data
         let data = []
-        for (const key of Object.keys(this.all_values)) {
-            data.push({
-                x: this.timestamps,
-                y: this.all_values[key],
-                name: key,
-                mode: "lines",
-            })
+
+        if (plot_style === "split") {
+            for (const key of Object.keys(this.all_values)) {
+                data.push({
+                    x: this.timestamps,
+                    y: this.all_values[key],
+                    name: key,
+                    mode: "lines",
+                })
+            }
+        } else if (plot_style === "total") {
+            let y_total = new Array(this.timestamps.length).fill(0);
+
+            for (const key of Object.keys(this.all_values)) {
+                if (y_total === undefined) {
+                    y_total = this.all_values[key].clone()
+                } else {
+                    for (let i = 0; i < y_total.length; i++) {
+                        y_total[i] += this.all_values[key][i]
+                    }
+                }
+            }
+
+            if (y_total !== undefined) {
+                data.push({
+                    x: this.timestamps,
+                    y: y_total,
+                    name: "total",
+                    mode: "lines",
+                })
+            }
+        } else {
+            console.log("Unknown plot_style", plot_style)
         }
 
         // layout
@@ -131,6 +176,7 @@ class Series {
         let layout = {
             datarevision: this.data_revision,
             margin: {t: 0},
+            showlegend: true,
             xaxis: {
                 type: "date",
                 range: [this.last_timestamp_date - this.window_size * 1000, this.last_timestamp_date]
@@ -181,34 +227,37 @@ function on_message(multi_series, msg_str) {
 
         // store the data
         multi_series.push_update(msg_json["series"]);
+        return true;
+    } else {
+        console.log("Unknown message type", msg_type)
+        return false;
+    }
+}
 
-        // plot the data
-        for (const [key, series] of Object.entries(multi_series.all_series)) {
-            let plot_id = "plot_" + key;
+function update_plots(multi_series, plot_style) {
+    // plot the data
+    for (const [key, series] of Object.entries(multi_series.all_series)) {
+        let plot_id = "plot_" + key;
 
-            // create the plot if necessary
-            let plot = document.getElementById(plot_id);
-            let first_time = false;
-            if (plot === null) {
-                plot = document.createElement("div")
-                plot.setAttribute("id", plot_id)
-                document.getElementById("plots").appendChild(plot)
-                first_time = true;
-            }
-
-            // update the plot
-            let plot_obj = series.plot_obj();
-
-            if (first_time) {
-                // noinspection JSUnresolvedFunction
-                Plotly.newPlot(plot, plot_obj);
-            } else {
-                // plot_obj.config["transition"] = {duration: 1000}
-                Plotly.react(plot, plot_obj);
-            }
+        // create the plot if necessary
+        let plot = document.getElementById(plot_id);
+        let first_time = false;
+        if (plot === null) {
+            plot = document.createElement("div")
+            plot.setAttribute("id", plot_id)
+            document.getElementById("plots").appendChild(plot)
+            first_time = true;
         }
 
-    } else {
-        console.log("Unknown message type " + msg_type)
+        // update the plot
+        let plot_obj = series.plot_obj(plot_style);
+
+        if (first_time) {
+            // noinspection JSUnresolvedFunction
+            Plotly.newPlot(plot, plot_obj);
+        } else {
+            // plot_obj.config["transition"] = {duration: 1000}
+            Plotly.react(plot, plot_obj);
+        }
     }
 }

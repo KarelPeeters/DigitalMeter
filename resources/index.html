@@ -1,23 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Grapher</title>
+    <title>DigitalMeter</title>
 </head>
+
+<style>
+    body {
+        font: 18px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    }
+</style>
 <body>
 
-<div id="content"></div>
-
-<!--style="width:600px;height:250px;"-->
+<div id="controls">
+<!--    <div style="display: block">-->
+<!--        <a href="downloads/test.txt" download="test.txt">Download test</a>-->
+<!--    </div>-->
+    <div>
+        <label>Plot type:</label>
+        <input id="radio_split" type="radio" name="plot_type" value="split" checked="checked">
+        <label for="radio_split">Split</label>
+        <input id="radio_total" type="radio" name="plot_type" value="total">
+        <label for="radio_total">Total</label>
+    </div>
+</div>
 
 <div id="plots"></div>
 
 <!--We're sticking an older version as a workout for ghost traces, see https://github.com/plotly/plotly.js/issues/-->
 <!--<script src="https://cdn.plot.ly/plotly-2.16.1.min.js"></script>-->
 <script src="https://cdn.plot.ly/plotly-2.14.0.min.js"></script>
-
 <script src="main.js" type="module"></script>
-
-<div id="info"></div>
 
 </body>
 </html>
