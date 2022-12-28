@@ -1,7 +1,6 @@
 import asyncio
 import functools
 import itertools
-import json
 import math
 import random
 import sqlite3
@@ -12,11 +11,13 @@ from sqlite3 import Connection
 from threading import Thread, Lock
 from typing import Set, Optional, Callable, List, Dict
 
+import simplejson
 import websockets
 from janus import Queue as JQueue
 from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
 
 from parse import Message
+
 
 @dataclass
 class Series:
@@ -255,14 +256,14 @@ async def handler(websocket, store: DataStore):
         print(
             f"Sending response type 'initial' with series {list(initial_series.map.keys())} to {websocket.remote_address}")
         # TODO replace nan with null in dumps
-        await websocket.send(json.dumps(response))
+        await websocket.send(simplejson.dumps(response, ignore_nan=True))
 
         while True:
             update_series: MultiSeries = await queue.async_q.get()
             response = {"type": "update", "series": update_series.to_json()}
             print(
                 f"Sending response type 'update' with series {list(update_series.map.keys())} to {websocket.remote_address}")
-            await websocket.send(json.dumps(response))
+            await websocket.send(simplejson.dumps(response, ignore_nan=True))
 
     except (ConnectionClosedError, ConnectionClosedOK):
         print(f"Client disconnected {websocket.remote_address}")

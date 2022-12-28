@@ -1,3 +1,4 @@
 janus~=1.0.0
 websockets~=10.4
 pyserial~=3.5
+simplejson~=3.18.0
