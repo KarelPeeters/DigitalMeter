@@ -18,7 +18,6 @@ from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
 
 from parse import Message
 
-
 @dataclass
 class Series:
     window_size: int
@@ -36,6 +35,8 @@ class Series:
     def to_json(self):
         return {
             "window_size": self.window_size,
+            "bucket_size": self.bucket_size,
+
             "timestamps": self.timestamps,
             "values": {
                 "p1": self.instant_power_1,
@@ -253,6 +254,7 @@ async def handler(websocket, store: DataStore):
         response = {"type": "initial", "series": initial_series.to_json()}
         print(
             f"Sending response type 'initial' with series {list(initial_series.map.keys())} to {websocket.remote_address}")
+        # TODO replace nan with null in dumps
         await websocket.send(json.dumps(response))
 
         while True:

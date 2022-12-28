@@ -48,6 +48,8 @@ window.addEventListener("DOMContentLoaded", () => {
 class Series {
     constructor() {
         this.window_size = 0
+        this.bucket_size = 0
+
         this.timestamps = []
         this.all_values = []
         this.data_revision = 0
@@ -59,7 +61,9 @@ class Series {
     push_update(series_data) {
         let timestamps = this.timestamps;
         let all_values = this.all_values;
+
         this.window_size = series_data["window_size"];
+        this.bucket_size = series_data["bucket_size"];
 
         // append data to state
         for (let i = 0; i < series_data["timestamps"].length; i++) {
@@ -67,7 +71,7 @@ class Series {
 
             // add padding values if necessary
             if (this.last_timestamp_int !== 0) {
-                for (let j = this.last_timestamp_int + 1; j < ts_int; j++) {
+                for (let j = this.last_timestamp_int + this.bucket_size; j < ts_int; j += this.bucket_size) {
                     timestamps.push(new Date(j * 1000));
                     for (let values of Object.values(all_values)) {
                         values.push(NaN);
@@ -127,7 +131,10 @@ class Series {
         let layout = {
             datarevision: this.data_revision,
             margin: {t: 0},
-            xaxis: {type: "date", range: [this.last_timestamp_date - this.window_size * 1000, this.last_timestamp_date]},
+            xaxis: {
+                type: "date",
+                range: [this.last_timestamp_date - this.window_size * 1000, this.last_timestamp_date]
+            },
         };
 
         // config
