@@ -300,6 +300,10 @@ def run_asyncio_main(store: DataStore):
 
 def run_message_processor(store: DataStore, message_queue: QQueue):
     while True:
+        q_size = message_queue.qsize()
+        if q_size > 10:
+            print(f"WARNING: backlog of {q_size} messages")
+
         message = message_queue.get()
         store.process_message(message)
 
