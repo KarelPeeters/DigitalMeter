@@ -108,18 +108,18 @@ def bucket_bounds(window_size: int, bucket_size: int, timestamp: int) -> (int, i
 
 
 def fetch_series_items(database: Connection, bucket_size: int, oldest: int, newest: int):
-    return database.execute(
-        "WITH const as (SELECT ? as bucket_size, ? as oldest, ? as newest) "
-        "SELECT timestamp / bucket_size * bucket_size, "
-        "AVG(instant_power_1),"
-        "AVG(instant_power_2),"
-        "AVG(instant_power_3)"
-        "FROM meter_samples, const "
-        "WHERE oldest < timestamp / bucket_size * bucket_size AND timestamp / bucket_size * bucket_size <= newest "
-        "GROUP BY timestamp / bucket_size "
-        "ORDER BY timestamp ",
-        (bucket_size, oldest, newest)
-    ).fetchall()
+    start = time.perf_counter()
+    result = database.execute("WITH const as (SELECT ? as bucket_size, ? as oldest, ? as newest) " \
+                                "SELECT timestamp / bucket_size * bucket_size, " \
+                                "AVG(instant_power_1)," \
+                                "AVG(instant_power_2)," \
+                                "AVG(instant_power_3)" \
+                                "FROM meter_samples, const " \
+                                "WHERE oldest < timestamp / bucket_size * bucket_size AND timestamp / bucket_size * bucket_size <= newest " \
+                                "GROUP BY timestamp / bucket_size " \
+                                "ORDER BY timestamp ", (bucket_size, oldest, newest)).fetchall()
+    print(f"Fetch took {time.perf_counter() - start}")
+    return result
 
 
 class Tracker:
@@ -146,9 +146,11 @@ class Tracker:
 
             if prev_timestamp is None:
                 # fetch the entire series
+                print(f"Fetching entire series for '{key}'")
                 new_items = fetch_series_items(database, series.bucket_size, curr_oldest, curr_newest)
             else:
                 # only fetch new buckets
+                print(f"Fetching new buckets for '{key}'")
                 _, prev_newest = bucket_bounds(series.window_size, series.bucket_size, prev_timestamp)
                 if curr_newest == prev_newest:
                     continue
