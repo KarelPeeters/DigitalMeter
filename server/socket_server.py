@@ -102,12 +102,19 @@ class MultiSeries:
 # TODO send nan for missing values instead of nothing, so JS doesn't just interpolate
 
 def bucket_bounds(window_size: int, bucket_size: int, timestamp: int) -> (int, int):
-    oldest = timestamp // bucket_size * bucket_size - window_size - bucket_size
-    newest = timestamp // bucket_size * bucket_size - bucket_size
+    """
+    Compute the bounds `min` (inclusive), `max` (exclusive) of all finished buckets,
+    assuming the sample with `timestamp` is the latest one in the database.
+    """
+    oldest = (timestamp + 1) // bucket_size * bucket_size - window_size
+    newest = (timestamp + 1) // bucket_size * bucket_size
     return oldest, newest
 
 
 def fetch_series_items(database: Connection, bucket_size: int, oldest: int, newest: int):
+    """
+    Fetch the buckets between `oldest` (inclusive) and `newest` (exclusive)`.
+    """
     return database.execute(
         "WITH const as (SELECT ? as bucket_size, ? as oldest, ? as newest) "
         "SELECT timestamp / bucket_size * bucket_size, "
@@ -115,7 +122,7 @@ def fetch_series_items(database: Connection, bucket_size: int, oldest: int, newe
         "AVG(instant_power_2),"
         "AVG(instant_power_3)"
         "FROM meter_samples, const "
-        "WHERE oldest < timestamp / bucket_size * bucket_size AND timestamp / bucket_size * bucket_size <= newest "
+        "WHERE oldest <= timestamp AND timestamp < newest "
         "GROUP BY timestamp / bucket_size "
         "ORDER BY timestamp ",
         (bucket_size, oldest, newest)
@@ -136,23 +143,26 @@ class Tracker:
 
     def process_message(self, database: Connection, msg: Message):
         prev_timestamp = self.last_timestamp
-        self.last_timestamp = msg.timestamp
+        curr_timestamp = msg.timestamp
+        self.last_timestamp = curr_timestamp
 
         delta_multi_series = MultiSeries({})
 
         for key in self.multi_series.map:
             series = self.multi_series.map[key]
-            curr_oldest, curr_newest = bucket_bounds(series.window_size, series.bucket_size, self.last_timestamp)
+            curr_oldest, curr_newest = bucket_bounds(series.window_size, series.bucket_size, curr_timestamp)
 
             if prev_timestamp is None:
                 # fetch the entire series
+                print(f"Fetching entire series for '{key}'")
                 new_items = fetch_series_items(database, series.bucket_size, curr_oldest, curr_newest)
             else:
-                # only fetch new buckets
+                # only fetch new buckets if any
                 _, prev_newest = bucket_bounds(series.window_size, series.bucket_size, prev_timestamp)
                 if curr_newest == prev_newest:
                     continue
                 else:
+                    print(f"Fetching new buckets for '{key}'")
                     new_items = fetch_series_items(database, series.bucket_size, prev_newest, curr_newest)
 
             # put into cached series
@@ -290,6 +300,10 @@ def run_asyncio_main(store: DataStore):
 
 def run_message_processor(store: DataStore, message_queue: QQueue):
     while True:
+        q_size = message_queue.qsize()
+        if q_size > 10:
+            print(f"WARNING: backlog of {q_size} messages")
+
         message = message_queue.get()
         store.process_message(message)
 
