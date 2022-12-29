@@ -115,8 +115,7 @@ def fetch_series_items(database: Connection, bucket_size: int, oldest: int, newe
     """
     Fetch the buckets between `oldest` (inclusive) and `newest` (exclusive)`.
     """
-    start = time.perf_counter()
-    result = database.execute(
+    return database.execute(
         "WITH const as (SELECT ? as bucket_size, ? as oldest, ? as newest) "
         "SELECT timestamp / bucket_size * bucket_size, "
         "AVG(instant_power_1),"
@@ -128,8 +127,6 @@ def fetch_series_items(database: Connection, bucket_size: int, oldest: int, newe
         "ORDER BY timestamp ",
         (bucket_size, oldest, newest)
     ).fetchall()
-    print(f"Fetch took {time.perf_counter() - start}")
-    return result
 
 
 class Tracker:
@@ -214,7 +211,6 @@ class DataStore:
             print(f"Processing message {msg}")
 
             # add to database
-            start = time.perf_counter()
             if msg.timestamp is not None:
                 self.database.execute(
                     "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?, ?)",
@@ -226,19 +222,14 @@ class DataStore:
                     (msg.peak_power_timestamp, msg.peak_power_timestamp_str, msg.peak_power)
                 )
             self.database.commit()
-            print(f"DB insert took {time.perf_counter() - start}")
 
             # update trackers
             # careful, we've already added the new values to the database
-            start = time.perf_counter()
             update_series = self.tracker.process_message(self.database, msg)
-            print(f"Tracker update took {time.perf_counter() - start}")
 
             # broadcast update series to sockets
-            start = time.perf_counter()
             for queue in self.broadcast_queues:
                 queue.sync_q.put(update_series)
-            print(f"Broadcast took {time.perf_counter() - start}")
 
     def add_broadcast_queue_get_data(self, queue: JQueue) -> MultiSeries:
         with self.lock:
