@@ -1,7 +1,7 @@
+import argparse
 import itertools
 import os
 import sqlite3
-import sys
 import time
 
 from parse import Parser, Message
@@ -26,12 +26,23 @@ def message_to_tuple(msg: Message):
 
 
 def main():
-    assert len(sys.argv) == 3, "Usage: 'log2db log_path db_path'"
+    parser = argparse.ArgumentParser(prog="log2db")
+    parser.add_argument("path_log")
+    parser.add_argument("path_db")
+    parser.add_argument("--update", action="store_true")
+    args = parser.parse_args()
 
-    path_log = sys.argv[1]
-    path_db = sys.argv[2]
+    path_log: str = args.path_log
+    path_db: str = args.path_db
+    update: bool = args.update
 
-    assert not os.path.exists(path_db), f"Database path '{path_db}' already exists"
+    db_exists = os.path.exists(path_db)
+
+    if db_exists:
+        if update:
+            print("Updating existing DB")
+        else:
+            assert False, f"Database path '{path_db}' already exists and --update was not passed"
 
     connection = sqlite3.connect(path_db)
 
@@ -79,7 +90,8 @@ def main():
         count += len(chunk)
         print(f"Inserted {count} values, {count / (time.perf_counter() - start)} values/s")
 
-    connection.commit()
+        # commit in loop to give potential other processes occasional access
+        connection.commit()
 
 
 if __name__ == "__main__":
