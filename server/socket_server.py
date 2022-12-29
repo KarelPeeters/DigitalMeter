@@ -201,6 +201,7 @@ class DataStore:
             print(f"Processing message {msg}")
 
             # add to database
+            start = time.perf_counter()
             if msg.timestamp is not None:
                 self.database.execute(
                     "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?, ?)",
@@ -212,14 +213,19 @@ class DataStore:
                     (msg.peak_power_timestamp, msg.peak_power_timestamp_str, msg.peak_power)
                 )
             self.database.commit()
+            print(f"DB insert took {time.perf_counter() - start}")
 
             # update trackers
             # careful, we've already added the new values to the database
+            start = time.perf_counter()
             update_series = self.tracker.process_message(self.database, msg)
+            print(f"Tracker update took {time.perf_counter() - start}")
 
             # broadcast update series to sockets
+            start = time.perf_counter()
             for queue in self.broadcast_queues:
                 queue.sync_q.put(update_series)
+            print(f"Broadcast took {time.perf_counter() - start}")
 
     def add_broadcast_queue_get_data(self, queue: JQueue) -> MultiSeries:
         with self.lock:
