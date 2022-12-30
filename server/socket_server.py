@@ -99,8 +99,6 @@ class MultiSeries:
         })
 
 
-# TODO send nan for missing values instead of nothing, so JS doesn't just interpolate
-
 def bucket_bounds(window_size: int, bucket_size: int, timestamp: int) -> (int, int):
     """
     Compute the bounds `min` (inclusive), `max` (exclusive) of all finished buckets,
@@ -274,7 +272,6 @@ async def handler(websocket, store: DataStore):
         response = {"type": "initial", "series": initial_series.to_json()}
         print(
             f"Sending response type 'initial' with series {list(initial_series.map.keys())} to {websocket.remote_address}")
-        # TODO replace nan with null in dumps
         await websocket.send(simplejson.dumps(response, ignore_nan=True))
 
         while True:
