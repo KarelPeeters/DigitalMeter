@@ -240,10 +240,11 @@ class DataStore:
 
 
 def run_dummy_parser(message_queue: QQueue):
-    drop_count = 0
+    t = time.time()
 
     for _ in itertools.count():
-        time.sleep(1)
+        t = t + 1
+        time.sleep(max(0.0, t - time.time()))
 
         # if drop_count > 0:
         #     print(f"Dropping message {drop_count}")
@@ -251,8 +252,6 @@ def run_dummy_parser(message_queue: QQueue):
         #     continue
         # if random.random() < 0.05:
         #     drop_count = 5
-
-        t = time.time()
 
         ya = math.sin(t * 0.1) + random.random() * 0.1
         yb = math.sin(t * 0.2) + random.random() * 0.2
