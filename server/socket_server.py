@@ -20,9 +20,23 @@ from parse import Message
 
 
 @dataclass
-class Series:
+class Buckets:
     window_size: int
     bucket_size: int
+
+    def bucket_bounds(self, timestamp: int) -> (int, int):
+        """
+        Compute the bounds `min` (inclusive), `max` (exclusive) of all finished buckets,
+        assuming the sample with `timestamp` is the latest one in the database.
+        """
+        oldest = (timestamp + 1) // self.bucket_size * self.bucket_size - self.window_size
+        newest = (timestamp + 1) // self.bucket_size * self.bucket_size
+        return oldest, newest
+
+
+@dataclass
+class Series:
+    buckets: Buckets
 
     timestamps: List[int]
     instant_power_1: List[float]
@@ -30,13 +44,13 @@ class Series:
     instant_power_3: List[float]
 
     @staticmethod
-    def empty(window_size: int, bucket_size: int):
-        return Series(window_size, bucket_size, [], [], [], [])
+    def empty(buckets: Buckets):
+        return Series(buckets, [], [], [], [])
 
     def to_json(self):
         return {
-            "window_size": self.window_size,
-            "bucket_size": self.bucket_size,
+            "window_size": self.buckets.window_size,
+            "bucket_size": self.buckets.bucket_size,
 
             "timestamps": self.timestamps,
             "values": {
@@ -48,8 +62,7 @@ class Series:
 
     def clone(self):
         return Series(
-            self.window_size,
-            self.bucket_size,
+            self.buckets,
             list(self.timestamps),
             list(self.instant_power_1),
             list(self.instant_power_2),
@@ -60,7 +73,7 @@ class Series:
         if len(self.timestamps) == 0:
             return
         newest = self.timestamps[-1]
-        self.drop_before(newest - self.window_size)
+        self.drop_before(newest - self.buckets.window_size)
 
     def drop_before(self, oldest):
         kept_index = next((i for i, t in enumerate(self.timestamps) if t >= oldest), 0)
@@ -99,16 +112,6 @@ class MultiSeries:
         })
 
 
-def bucket_bounds(window_size: int, bucket_size: int, timestamp: int) -> (int, int):
-    """
-    Compute the bounds `min` (inclusive), `max` (exclusive) of all finished buckets,
-    assuming the sample with `timestamp` is the latest one in the database.
-    """
-    oldest = (timestamp + 1) // bucket_size * bucket_size - window_size
-    newest = (timestamp + 1) // bucket_size * bucket_size
-    return oldest, newest
-
-
 def fetch_series_items(database: Connection, bucket_size: int, oldest: int, newest: int):
     """
     Fetch the buckets between `oldest` (inclusive) and `newest` (exclusive)`.
@@ -128,15 +131,14 @@ def fetch_series_items(database: Connection, bucket_size: int, oldest: int, newe
 
 
 class Tracker:
-    def __init__(self, history_window_size: int):
-        self.history_window_size = history_window_size
+    def __init__(self):
         self.last_timestamp: Optional[int] = None
 
         self.multi_series = MultiSeries({
-            "minute": Series.empty(60, 1),
-            "hour": Series.empty(60 * 60, 10),
-            "day": Series.empty(24 * 60 * 60, 24 * 10),
-            "week": Series.empty(7 * 24 * 60 * 60, 7 * 24 * 10),
+            "minute": Series.empty(Buckets(60, 1)),
+            "hour": Series.empty(Buckets(60 * 60, 10)),
+            "day": Series.empty(Buckets(24 * 60 * 60, 24 * 10)),
+            "week": Series.empty(Buckets(7 * 24 * 60 * 60, 7 * 24 * 10)),
         })
 
     def process_message(self, database: Connection, msg: Message):
@@ -148,26 +150,26 @@ class Tracker:
 
         for key in self.multi_series.map:
             series = self.multi_series.map[key]
-            curr_oldest, curr_newest = bucket_bounds(series.window_size, series.bucket_size, curr_timestamp)
+            curr_oldest, curr_newest = series.buckets.bucket_bounds(curr_timestamp)
 
             if prev_timestamp is None:
                 # fetch the entire series
                 print(f"Fetching entire series for '{key}'")
-                new_items = fetch_series_items(database, series.bucket_size, curr_oldest, curr_newest)
+                new_items = fetch_series_items(database, series.buckets.bucket_size, curr_oldest, curr_newest)
             else:
                 # only fetch new buckets if any
-                _, prev_newest = bucket_bounds(series.window_size, series.bucket_size, prev_timestamp)
+                _, prev_newest = series.buckets.bucket_bounds(prev_timestamp)
                 if curr_newest == prev_newest:
                     continue
                 else:
                     print(f"Fetching new buckets for '{key}'")
-                    new_items = fetch_series_items(database, series.bucket_size, prev_newest, curr_newest)
+                    new_items = fetch_series_items(database, series.buckets.bucket_size, prev_newest, curr_newest)
 
             # put into cached series
             series.extend_items(new_items)
 
             # put into delta series
-            delta_series = Series.empty(series.window_size, series.bucket_size)
+            delta_series = Series.empty(series.buckets)
             delta_series.extend_items(new_items)
             delta_multi_series.map[key] = delta_series
 
@@ -178,10 +180,9 @@ class Tracker:
 
 
 class DataStore:
-    def __init__(self, database: Connection, history_window_size: int):
+    def __init__(self, database: Connection):
         self.database = database
-        self.tracker = Tracker(history_window_size)
-        self.history_window_size = history_window_size
+        self.tracker = Tracker()
 
         self.lock = Lock()
         self.broadcast_queues: Set[JQueue] = set()
@@ -307,8 +308,8 @@ def run_message_processor(store: DataStore, message_queue: QQueue):
 def run_socket_server(generator: Callable[[QQueue], None], database_path: str, ):
     message_queue = QQueue()
 
-    database = sqlite3.connect(database_path)
-    store = DataStore(database, 60)
+    database_main = sqlite3.connect(database_path)
+    store = DataStore(database_main)
 
     Thread(target=generator, args=(message_queue,)).start()
     Thread(target=run_asyncio_main, args=(store,)).start()
