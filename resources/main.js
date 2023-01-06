@@ -3,8 +3,14 @@ class State {
         this.multi_series = new MultiSeries()
 
         this.plot_style = "split"
-        document.getElementById("radio_split").addEventListener("change", e => this.on_plot_mode_changed(e))
-        document.getElementById("radio_total").addEventListener("change", e => this.on_plot_mode_changed(e))
+        this.include_zero = false
+
+        this.radio_split = document.getElementById("radio_split");
+        this.radio_split.addEventListener("change", e => this.on_plot_setting_changed(e))
+        this.radio_total = document.getElementById("radio_total");
+        this.radio_total.addEventListener("change", e => this.on_plot_setting_changed(e))
+        this.check_zero = document.getElementById("check_include_zero");
+        this.check_zero.addEventListener("change", e => this.on_plot_setting_changed(e))
 
         this.socket = null;
         this.timeout = null;
@@ -42,18 +48,26 @@ class State {
         let should_update = on_message(this.multi_series, message.data)
 
         if (should_update) {
-            update_plots(this.multi_series, this.plot_style)
+            update_plots(this.multi_series, this.plot_style, this.include_zero)
         }
     }
 
-    on_plot_mode_changed(e) {
-        let old_value = this.plot_style;
-        this.plot_style = e.target.value
+    on_plot_setting_changed(e) {
+        let old_style = this.plot_style
+        let old_zero = this.include_zero
 
-        console.log("Style changed to", this, this.plot_style)
+        if (e.target === this.radio_total || e.target === this.radio_split) {
+            this.plot_style = e.target.value
+        } else if (e.target === this.check_zero) {
+            this.include_zero = e.target.checked
+        } else {
+            console.log("Unexpected event target", e, e.target);
+        }
 
-        if (this.plot_style !== old_value) {
-            update_plots(this.multi_series, this.plot_style)
+        console.log("Style changed to", this.plot_style, this.include_zero)
+
+        if (this.plot_style !== old_style || this.include_zero !== old_zero) {
+            update_plots(this.multi_series, this.plot_style, this.include_zero)
         }
     }
 }
@@ -133,7 +147,12 @@ class Series {
         }
     }
 
-    plot_obj(plot_style) {
+    plot_obj(plot_style, include_zero) {
+        if (!(plot_style === "split" || plot_style === "total")) {
+            console.log("Unknown plot_style", plot_style)
+            plot_style = "split"
+        }
+
         // data
         let data = []
 
@@ -167,8 +186,6 @@ class Series {
                     mode: "lines",
                 })
             }
-        } else {
-            console.log("Unknown plot_style", plot_style)
         }
 
         // layout
@@ -181,7 +198,12 @@ class Series {
                 type: "date",
                 range: [this.last_timestamp_date - this.window_size * 1000, this.last_timestamp_date]
             },
+            yaxis: {}
         };
+
+        if (include_zero) {
+            layout.yaxis.rangemode = "tozero"
+        }
 
         // config
         let config = {
@@ -234,7 +256,7 @@ function on_message(multi_series, msg_str) {
     }
 }
 
-function update_plots(multi_series, plot_style) {
+function update_plots(multi_series, plot_style, include_zero) {
     // plot the data
     for (const [key, series] of Object.entries(multi_series.all_series)) {
         let plot_id = "plot_" + key;
@@ -250,7 +272,7 @@ function update_plots(multi_series, plot_style) {
         }
 
         // update the plot
-        let plot_obj = series.plot_obj(plot_style);
+        let plot_obj = series.plot_obj(plot_style, include_zero);
 
         if (first_time) {
             // noinspection JSUnresolvedFunction
