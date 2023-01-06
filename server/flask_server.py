@@ -1,5 +1,4 @@
 import mimetypes
-import time
 from io import StringIO
 
 from flask import Flask, Response, current_app
@@ -21,32 +20,20 @@ def download_csv(bucket):
 
         database = Database(current_app.config["database_path"])
 
-        # TODO why is this slow?
         def generate():
             yield "timestamp,instant_power_1,instant_power_2,instant_power_3\n"
 
-            print("Start generate")
-            start = time.perf_counter()
+            # convert data to csv in batches, using StringIO for string concatenation
             data = database.fetch_series_items(bucket, None, None)
-            print(f"initial took {time.perf_counter() - start}")
-
             while True:
-                start = time.perf_counter()
                 batch = data.fetchmany(10 * 1024)
-                print(f"fetch took {time.perf_counter() - start}")
                 if len(batch) == 0:
                     break
 
-                start = time.perf_counter()
                 writer = StringIO()
                 for x in batch:
                     writer.write(",".join(str(d) for d in x) + "\n")
-                result = writer.getvalue()
-                print(f"concat took {time.perf_counter() - start}")
-
-                start = time.perf_counter()
-                yield result
-                print(f"yield took {time.perf_counter() - start}")
+                yield writer.getvalue()
 
             # TODO if the user cancels the request this code does not run, are we leaking stuff?
             database.close()
