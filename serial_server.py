@@ -4,8 +4,7 @@ from threading import Thread
 import serial
 
 from parse import Parser, Message
-from server.http_server import run_http_server
-from server.socket_server import run_socket_server
+from server.main import server_main
 
 
 def run_serial_parser(message_queue: QQueue, log):
@@ -49,6 +48,6 @@ if __name__ == '__main__':
             run_serial_parser(queue, log)
 
 
-    Thread(target=run_http_server, args=("resources",)).start()
-
-    run_socket_server(generator, "data.db")
+    thread = Thread(target=server_main, args=("data.db", generator))
+    thread.start()
+    thread.join()
