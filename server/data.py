@@ -12,6 +12,9 @@ class Database:
     def __init__(self, path):
         self.conn = sqlite3.connect(path)
 
+        result = self.conn.execute("PRAGMA journal_mode=WAL;").fetchone()
+        assert result == ("wal",), "Failed to switch to WAL mode"
+
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS meter_samples("
             "    timestamp INTEGER PRIMARY KEY,"
