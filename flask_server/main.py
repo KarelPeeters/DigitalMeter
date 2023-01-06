@@ -4,8 +4,14 @@ app = Flask(__name__, static_url_path="")
 
 
 @app.route("/download/<group>.csv")
-def hello_world(group):
-    return f"<p>CSV file with group {group}</p>"
+def download_csv(group):
+    def generate():
+        yield f"CSV file with group {group}:\n"
+        for i in range(int(1e9)):
+            print(f"yielding {i}")
+            yield f"{i}, 5, 6, 7, 9,\n"
+
+    return app.response_class(generate(), mimetype="text/csv")
 
 
 @app.route("/")
