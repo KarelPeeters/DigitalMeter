@@ -198,7 +198,11 @@ class Series {
                 type: "date",
                 range: [this.last_timestamp_date - this.window_size * 1000, this.last_timestamp_date]
             },
-            yaxis: {}
+            yaxis: {
+                title: {
+                    text: "P (W)"
+                }
+            }
         };
 
         if (include_zero) {
