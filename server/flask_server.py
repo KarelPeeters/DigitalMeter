@@ -21,8 +21,17 @@ def download_csv(bucket):
 
         def generate():
             yield "timestamp,instant_power_1,instant_power_2,instant_power_3\n"
-            for values in database.fetch_series_items(bucket, None, None):
-                yield ",".join(str(v) for v in values) + "\n"
+            data = database.fetch_series_items(bucket, None, None)
+
+            while True:
+                batch = data.fetchmany(1024)
+                if len(batch) == 0:
+                    break
+
+                result = ""
+                for values in batch:
+                    result += ",".join(str(v) for v in values) + "\n"
+                yield result
 
             # TODO if the user cancels the request this code does not run, are we leaking stuff?
             database.close()
