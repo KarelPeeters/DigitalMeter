@@ -1,5 +1,6 @@
 import mimetypes
 import time
+from io import StringIO
 
 from flask import Flask, Response, current_app
 
@@ -37,7 +38,10 @@ def download_csv(bucket):
                     break
 
                 start = time.perf_counter()
-                result = "\n".join(",".join(str(v) for v in values) for values in batch)
+                writer = StringIO()
+                for x in data:
+                    writer.write(",".join(str(d) for d in x) + "\n")
+                result = writer.getvalue()
                 print(f"concat took {time.perf_counter() - start}")
 
                 start = time.perf_counter()
