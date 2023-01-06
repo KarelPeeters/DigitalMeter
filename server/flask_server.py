@@ -24,7 +24,10 @@ def download_csv(bucket):
         def generate():
             yield "timestamp,instant_power_1,instant_power_2,instant_power_3\n"
 
+            print("Start generate")
+            start = time.perf_counter()
             data = database.fetch_series_items(bucket, None, None)
+            print(f"initial took {time.perf_counter() - start}")
 
             while True:
                 start = time.perf_counter()
