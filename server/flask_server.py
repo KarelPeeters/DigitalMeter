@@ -49,8 +49,7 @@ def flask_main(database: Database):
     mimetypes.add_type("application/javascript", ".js")
     mimetypes.add_type("text/html", ".html")
 
-    # TODO add host=0.0.0.0 to open to public
-    app.run(port=8000, threaded=False)
+    app.run(host="0.0.0.0", port=8000, threaded=False)
 
 
 if __name__ == '__main__':
