@@ -72,6 +72,9 @@ class Database:
             (bucket_size, oldest, newest)
         )
 
+    def close(self):
+        self.conn.close()
+
 
 @dataclass
 class Buckets:

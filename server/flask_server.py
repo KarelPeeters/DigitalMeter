@@ -1,27 +1,31 @@
 import mimetypes
-from typing import Optional
 
-from flask import Flask, Response
+from flask import Flask, Response, current_app
 
 from server.data import Database
 
 app = Flask(__name__, static_url_path="", static_folder="../resources")
-global_database: Optional[Database] = None
 
 
 @app.route("/download/<bucket>.csv")
 def download_csv(bucket):
-    print(f"Responding to download with bucket size {bucket}")
+    print(f"Responding to download with bucket size '{bucket}'")
+    database = None
 
     try:
         bucket = int(bucket)
         if bucket < 1:
             raise ValueError()
 
+        database = Database(current_app.config["database_path"])
+
         def generate():
             yield "timestamp,instant_power_1,instant_power_2,instant_power_3\n"
-            for values in global_database.fetch_series_items(bucket, None, None):
+            for values in database.fetch_series_items(bucket, None, None):
                 yield ",".join(str(v) for v in values) + "\n"
+
+            # TODO if the user cancels the request this code does not run, are we leaking stuff?
+            database.close()
 
         return app.response_class(generate(), mimetype="text/csv")
     except ValueError:
@@ -42,15 +46,15 @@ def add_headers(response: Response):
     return response
 
 
-def flask_main(database: Database):
-    global global_database
-    global_database = database
-
+def flask_main(database_path: str):
+    # fix for window registry being broken
+    #  (and for python web apps checking the registry for this in the first place, why???)
     mimetypes.add_type("application/javascript", ".js")
     mimetypes.add_type("text/html", ".html")
 
-    app.run(host="0.0.0.0", port=8000, threaded=False)
+    app.config["database_path"] = database_path
+    app.run(host="0.0.0.0", port=8000, threaded=True)
 
 
 if __name__ == '__main__':
-    flask_main(Database("dummy.db"))
+    flask_main("dummy.db")
