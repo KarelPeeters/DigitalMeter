@@ -61,12 +61,12 @@ class Database:
 
         if bucket_size == 1:
             return self.conn.execute(
-                "WITH const as (? as oldest, ? as newest) "
+                "WITH const as (SELECT ? as oldest, ? as newest) "
                 "SELECT timestamp, instant_power_1, instant_power_2, instant_power_3 "
                 "FROM meter_samples, const "
                 f"{where_clause}"
                 "ORDER BY timestamp ",
-                (bucket_size, oldest, newest)
+                (oldest, newest)
             )
         else:
             return self.conn.execute(
