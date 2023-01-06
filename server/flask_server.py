@@ -37,9 +37,7 @@ def download_csv(bucket):
                     break
 
                 start = time.perf_counter()
-                result = ""
-                for values in batch:
-                    result += ",".join(str(v) for v in values) + "\n"
+                result = "\n".join(",".join(str(v) for v in values) for values in batch)
                 print(f"concat took {time.perf_counter() - start}")
 
                 start = time.perf_counter()
