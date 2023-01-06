@@ -67,7 +67,7 @@ class Database:
             "GROUP BY timestamp / bucket_size "
             "ORDER BY timestamp ",
             (bucket_size, oldest, newest)
-        ).fetchall()
+        )
 
 
 @dataclass
@@ -188,7 +188,7 @@ class Tracker:
             if prev_timestamp is None:
                 # fetch the entire series
                 print(f"Fetching entire series for '{key}'")
-                new_items = database.fetch_series_items(series.buckets.bucket_size, curr_oldest, curr_newest)
+                new_items = database.fetch_series_items(series.buckets.bucket_size, curr_oldest, curr_newest).fetchall()
             else:
                 # only fetch new buckets if any
                 _, prev_newest = series.buckets.bucket_bounds(prev_timestamp)
@@ -196,7 +196,8 @@ class Tracker:
                     continue
                 else:
                     print(f"Fetching new buckets for '{key}'")
-                    new_items = database.fetch_series_items(series.buckets.bucket_size, prev_newest, curr_newest)
+                    new_items = database.fetch_series_items(series.buckets.bucket_size, prev_newest,
+                                                            curr_newest).fetchall()
 
             # put into cached series
             series.extend_items(new_items)
