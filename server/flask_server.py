@@ -32,14 +32,14 @@ def download_csv(bucket):
 
             while True:
                 start = time.perf_counter()
-                batch = data.fetchmany(1024)
+                batch = data.fetchmany(10 * 1024)
                 print(f"fetch took {time.perf_counter() - start}")
                 if len(batch) == 0:
                     break
 
                 start = time.perf_counter()
                 writer = StringIO()
-                for x in data:
+                for x in batch:
                     writer.write(",".join(str(d) for d in x) + "\n")
                 result = writer.getvalue()
                 print(f"concat took {time.perf_counter() - start}")
