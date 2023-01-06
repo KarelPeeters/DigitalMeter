@@ -43,10 +43,19 @@ class Database:
             )
         self.conn.commit()
 
-    def fetch_series_items(self, bucket_size: int, oldest: int, newest: int):
+    def fetch_series_items(self, bucket_size: int, oldest: Optional[int], newest: Optional[int]):
         """
         Fetch the buckets between `oldest` (inclusive) and `newest` (exclusive)`.
         """
+        if oldest is not None and newest is not None:
+            where_clause = f"WHERE {oldest} <= timestamp AND timestamp < {newest} "
+        elif oldest is not None:
+            where_clause = f"WHERE {oldest} <= timestamp "
+        elif newest is not None:
+            where_clause = f"WHERE timestamp < {newest} "
+        else:
+            where_clause = ""
+
         return self.conn.execute(
             "WITH const as (SELECT ? as bucket_size, ? as oldest, ? as newest) "
             "SELECT timestamp / bucket_size * bucket_size, "
@@ -54,7 +63,7 @@ class Database:
             "AVG(instant_power_2),"
             "AVG(instant_power_3)"
             "FROM meter_samples, const "
-            "WHERE oldest <= timestamp AND timestamp < newest "
+            f"{where_clause}"
             "GROUP BY timestamp / bucket_size "
             "ORDER BY timestamp ",
             (bucket_size, oldest, newest)
