@@ -2,20 +2,27 @@
 <html lang="en">
 <head>
     <title>DigitalMeter</title>
-    <link rel="icon"  href="favicon.ico">
+    <link rel="icon" href="favicon.ico">
 </head>
 
 <style>
     body {
         font: 18px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     }
+
+    table {
+        text-align: left;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    td {
+        padding-right: 20px;
+    }
 </style>
 <body>
 
 <div id="controls">
-<!--    <div style="display: block">-->
-<!--        <a href="downloads/test.txt" download="test.txt">Download test</a>-->
-<!--    </div>-->
     <div>
         <label>Plot settings:</label>
         <label>
@@ -36,6 +43,50 @@
 </div>
 
 <div id="plots"></div>
+
+<div>
+    <table>
+        <thead>
+        <tr>
+            <th style="color: #1F77B4">Blauw</th>
+            <th style="color: #2CA02C">Orange</th>
+            <th style="color: #FF7F0E;">Groen</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+            <td>Lampen</td>
+            <td>Badkamer</td>
+            <td>Tuin</td>
+        </tr>
+        <tr>
+            <td>Stopcontacten</td>
+            <td>Vaatwasser</td>
+            <td>Fornuis</td>
+        </tr>
+        <tr>
+            <td>Koelkast</td>
+            <td>Wasmachine</td>
+            <td>Oven</td>
+        </tr>
+        <tr>
+            <td>Diepvriezer</td>
+            <td>Droogkast</td>
+            <td>Boiler</td>
+        </tr>
+        <tr>
+            <td>Microgolf</td>
+            <td></td>
+            <td>Zolder</td>
+        </tr>
+        <tr>
+            <td>Verwarming<br></td>
+            <td></td>
+            <td></td>
+        </tr>
+        </tbody>
+    </table>
+</div>
 
 <!--We're sticking an older version as a workout for ghost traces, see https://github.com/plotly/plotly.js/issues/-->
 <!--<script src="https://cdn.plot.ly/plotly-2.16.1.min.js"></script>-->
