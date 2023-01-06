@@ -1,4 +1,5 @@
 import mimetypes
+import time
 
 from flask import Flask, Response, current_app
 
@@ -19,19 +20,28 @@ def download_csv(bucket):
 
         database = Database(current_app.config["database_path"])
 
+        # TODO why is this slow?
         def generate():
             yield "timestamp,instant_power_1,instant_power_2,instant_power_3\n"
+
             data = database.fetch_series_items(bucket, None, None)
 
             while True:
+                start = time.perf_counter()
                 batch = data.fetchmany(1024)
+                print(f"fetch took {time.perf_counter() - start}")
                 if len(batch) == 0:
                     break
 
+                start = time.perf_counter()
                 result = ""
                 for values in batch:
                     result += ",".join(str(v) for v in values) + "\n"
+                print(f"concat took {time.perf_counter() - start}")
+
+                start = time.perf_counter()
                 yield result
+                print(f"yield took {time.perf_counter() - start}")
 
             # TODO if the user cancels the request this code does not run, are we leaking stuff?
             database.close()
