@@ -59,18 +59,28 @@ class Database:
         else:
             where_clause = ""
 
-        return self.conn.execute(
-            "WITH const as (SELECT ? as bucket_size, ? as oldest, ? as newest) "
-            "SELECT timestamp / bucket_size * bucket_size, "
-            "AVG(instant_power_1),"
-            "AVG(instant_power_2),"
-            "AVG(instant_power_3)"
-            "FROM meter_samples, const "
-            f"{where_clause}"
-            "GROUP BY timestamp / bucket_size "
-            "ORDER BY timestamp ",
-            (bucket_size, oldest, newest)
-        )
+        if bucket_size == 1:
+            return self.conn.execute(
+                "WITH const as (? as oldest, ? as newest) "
+                "SELECT timestamp, instant_power_1, instant_power_2, instant_power_3 "
+                "FROM meter_samples, const "
+                f"{where_clause}"
+                "ORDER BY timestamp ",
+                (bucket_size, oldest, newest)
+            )
+        else:
+            return self.conn.execute(
+                "WITH const as (SELECT ? as bucket_size, ? as oldest, ? as newest) "
+                "SELECT timestamp / bucket_size * bucket_size, "
+                "AVG(instant_power_1),"
+                "AVG(instant_power_2),"
+                "AVG(instant_power_3)"
+                "FROM meter_samples, const "
+                f"{where_clause}"
+                "GROUP BY timestamp / bucket_size "
+                "ORDER BY timestamp ",
+                (bucket_size, oldest, newest)
+            )
 
     def close(self):
         self.conn.close()
