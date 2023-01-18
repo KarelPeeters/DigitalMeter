@@ -2,14 +2,19 @@ class State {
     constructor() {
         this.multi_series = new MultiSeries()
 
-        this.plot_style = "split"
-        this.include_zero = false
+        this.plot_style = getCookie("plot_style") || "split"
+        this.include_zero = getCookie("include_zero") === "true"
 
         this.radio_split = document.getElementById("radio_split");
-        this.radio_split.addEventListener("change", e => this.on_plot_setting_changed(e))
         this.radio_total = document.getElementById("radio_total");
-        this.radio_total.addEventListener("change", e => this.on_plot_setting_changed(e))
         this.check_zero = document.getElementById("check_include_zero");
+
+        this.radio_split.checked = this.plot_style === "split"
+        this.radio_total.checked = this.plot_style !== "split"
+        this.check_zero.checked = this.include_zero
+
+        this.radio_split.addEventListener("change", e => this.on_plot_setting_changed(e))
+        this.radio_total.addEventListener("change", e => this.on_plot_setting_changed(e))
         this.check_zero.addEventListener("change", e => this.on_plot_setting_changed(e))
 
         this.socket = null;
@@ -69,6 +74,9 @@ class State {
         if (this.plot_style !== old_style || this.include_zero !== old_zero) {
             update_plots(this.multi_series, this.plot_style, this.include_zero)
         }
+
+        setCookie("plot_style", this.plot_style);
+        setCookie("include_zero", this.include_zero);
     }
 }
 
@@ -286,4 +294,13 @@ function update_plots(multi_series, plot_style, include_zero) {
             Plotly.react(plot, plot_obj);
         }
     }
+}
+
+function getCookie(key) {
+    // from https://stackoverflow.com/a/25490531/5517612
+    return document.cookie.match('(^|;)\\s*' + key + '\\s*=\\s*([^;]+)')?.pop()
+}
+
+function setCookie(key, value) {
+    document.cookie = key + "=" + value + ";path=/;SameSite=Lax";
 }
