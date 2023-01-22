@@ -1,46 +1,110 @@
 import mimetypes
+from dataclasses import dataclass
+from enum import auto, Enum
 from io import StringIO
+from typing import Optional
 
-from flask import Flask, Response, current_app
+import flask
+from flask import Flask, Response, current_app, request
 
 from server.data import Database
 
 app = Flask(__name__, static_url_path="", static_folder="../resources")
 
 
-@app.route("/download/<bucket>.csv")
-def download_csv(bucket):
-    print(f"Responding to download with bucket size '{bucket}'")
-    database = None
+class DownloadType(Enum):
+    CSV = auto()
+    JSON = auto()
+
+
+@dataclass
+class DownloadParams:
+    bucket_size: int
+    oldest: Optional[int]
+    newest: Optional[int]
+    type: DownloadType
+
+
+class ParseDownloadError(ValueError):
+    def __init__(self, html: str):
+        self.html = html
+
+
+def parse_download_params(args, ty: str) -> DownloadParams:
+    args = dict(args)
+    curr_arg = None
 
     try:
-        bucket = int(bucket)
-        if bucket < 1:
+        curr_arg = "bucket_size"
+        bucket_size = int(args.pop("bucket_size"))
+        if bucket_size < 1:
             raise ValueError()
 
-        database = Database(current_app.config["database_path"])
+        curr_arg = "oldest"
+        oldest = args.pop("oldest", None)
+        if oldest is not None:
+            oldest = int(oldest)
 
-        def generate():
-            yield "timestamp,instant_power_1,instant_power_2,instant_power_3\n"
+        curr_arg = "newest"
+        newest = args.pop("newest", None)
+        if newest is not None:
+            newest = int(newest)
 
-            # convert data to csv in batches, using StringIO for string concatenation
-            data = database.fetch_series_items(bucket, None, None)
-            while True:
-                batch = data.fetchmany(10 * 1024)
-                if len(batch) == 0:
-                    break
+        curr_arg = "type"
+        if ty == "csv":
+            ty = DownloadType.CSV
+        elif ty == "json":
+            ty = DownloadType.JSON
+        else:
+            raise ValueError()
 
-                writer = StringIO()
-                for x in batch:
-                    writer.write(",".join(str(d) for d in x) + "\n")
-                yield writer.getvalue()
-
-            # TODO if the user cancels the request this code does not run, are we leaking stuff?
-            database.close()
-
-        return app.response_class(generate(), mimetype="text/csv")
     except ValueError:
-        return "<p>Invalid or missing bucket size</p>"
+        curr_arg = f"'{curr_arg}'"
+        raise ParseDownloadError(f"<p>Invalid parameter {flask.escape(curr_arg)}</p>")
+    except KeyError:
+        curr_arg = f"'{curr_arg}'"
+        raise ParseDownloadError(f"<p>Missing parameter {flask.escape(curr_arg)}</p>")
+    if len(args) > 0:
+        raise ParseDownloadError(f"<p>Unused parameters {flask.escape(list(args.keys()))}</p>")
+
+    return DownloadParams(bucket_size, oldest, newest, ty)
+
+
+@app.route("/download/samples_<name>.<ty>")
+def download_csv(name: str, ty: str):
+    # name is only used to suggest a file name when downloading
+    _ = name
+
+    args = dict(request.args)
+    print(f"Responding to download with args '{args}' and type '{ty}'")
+
+    try:
+        params = parse_download_params(request.args, ty)
+    except ParseDownloadError as e:
+        return e.html
+
+    # open new temporary db connection
+    database = Database(current_app.config["database_path"])
+
+    def generate():
+        yield "timestamp,instant_power_1,instant_power_2,instant_power_3\n"
+
+        # convert data to csv in batches, using StringIO for string concatenation
+        data = database.fetch_series_items(params.bucket_size, params.oldest, params.newest)
+        while True:
+            batch = data.fetchmany(10 * 1024)
+            if len(batch) == 0:
+                break
+
+            writer = StringIO()
+            for x in batch:
+                writer.write(",".join(str(d) for d in x) + "\n")
+            yield writer.getvalue()
+
+        # TODO if the user cancels the request this code does not run, are we leaking stuff?
+        database.close()
+
+    return app.response_class(generate(), mimetype="text/csv")
 
 
 @app.route("/")
