@@ -1,21 +1,52 @@
-class State {
-    constructor() {
-        this.multi_series = new MultiSeries()
+class PlotStyle {
+    constructor(radio_split, radio_total, check_zero, on_change) {
+        this.split_kind = getCookie("plot_style", "split")
+        this.include_zero = getCookie("include_zero", false) === "true"
 
-        this.plot_style = getCookie("plot_style") || "split"
-        this.include_zero = getCookie("include_zero") === "true"
-
-        this.radio_split = document.getElementById("radio_split");
-        this.radio_total = document.getElementById("radio_total");
-        this.check_zero = document.getElementById("check_include_zero");
-
-        this.radio_split.checked = this.plot_style === "split"
-        this.radio_total.checked = this.plot_style !== "split"
-        this.check_zero.checked = this.include_zero
+        this.radio_split = radio_split
+        this.radio_total = radio_total
+        this.check_zero = check_zero
 
         this.radio_split.addEventListener("change", e => this.on_plot_setting_changed(e))
         this.radio_total.addEventListener("change", e => this.on_plot_setting_changed(e))
         this.check_zero.addEventListener("change", e => this.on_plot_setting_changed(e))
+
+        this.on_change = on_change
+    }
+
+    on_plot_setting_changed(e) {
+        let old_split_kind = this.split_kind
+        let old_zero = this.include_zero
+
+        if (e.target === this.radio_total || e.target === this.radio_split) {
+            this.split_kind = e.target.value
+            setCookie("split_kind", this.split_kind)
+        } else if (e.target === this.check_zero) {
+            this.include_zero = e.target.checked
+            setCookie("include_zero", this.include_zero)
+        } else {
+            console.log("Unexpected event target", e, e.target);
+        }
+
+        console.log("Style changed to", this.split_kind, this.include_zero)
+
+        if (this.split_kind !== old_split_kind || this.include_zero !== old_zero) {
+            // queue callback
+            setTimeout(this.on_change, 0)
+        }
+    }
+}
+
+class State {
+    constructor() {
+        this.multi_series = new MultiSeries()
+
+        this.plot_style = new PlotStyle(
+            document.getElementById("radio_split"),
+            document.getElementById("radio_total"),
+            document.getElementById("check_include_zero"),
+            () => this.on_plot_style_changed(),
+        )
 
         this.socket = null;
         this.timeout = null;
@@ -53,30 +84,12 @@ class State {
         let should_update = on_message(this.multi_series, message.data)
 
         if (should_update) {
-            update_plots(this.multi_series, this.plot_style, this.include_zero)
+            update_plots(this.multi_series, this.plot_style)
         }
     }
 
-    on_plot_setting_changed(e) {
-        let old_style = this.plot_style
-        let old_zero = this.include_zero
-
-        if (e.target === this.radio_total || e.target === this.radio_split) {
-            this.plot_style = e.target.value
-        } else if (e.target === this.check_zero) {
-            this.include_zero = e.target.checked
-        } else {
-            console.log("Unexpected event target", e, e.target);
-        }
-
-        console.log("Style changed to", this.plot_style, this.include_zero)
-
-        if (this.plot_style !== old_style || this.include_zero !== old_zero) {
-            update_plots(this.multi_series, this.plot_style, this.include_zero)
-        }
-
-        setCookie("plot_style", this.plot_style);
-        setCookie("include_zero", this.include_zero);
+    on_plot_style_changed() {
+        update_plots(this.multi_series, this.plot_style)
     }
 }
 
@@ -155,16 +168,11 @@ class Series {
         }
     }
 
-    plot_obj(plot_style, include_zero) {
-        if (!(plot_style === "split" || plot_style === "total")) {
-            console.log("Unknown plot_style", plot_style)
-            plot_style = "split"
-        }
-
+    plot_obj(plot_style) {
         // data
         let data = []
 
-        if (plot_style === "split") {
+        if (plot_style.split_kind === "split") {
             for (const key of Object.keys(this.all_values)) {
                 data.push({
                     x: this.timestamps,
@@ -173,7 +181,7 @@ class Series {
                     mode: "lines",
                 })
             }
-        } else if (plot_style === "total") {
+        } else if (plot_style.split_kind === "total") {
             let y_total = new Array(this.timestamps.length).fill(0);
 
             for (const key of Object.keys(this.all_values)) {
@@ -194,6 +202,9 @@ class Series {
                     mode: "lines",
                 })
             }
+        } else {
+            console.log("Invalid split_kind", plot_style.split_kind)
+            return
         }
 
         // layout
@@ -213,7 +224,7 @@ class Series {
             }
         };
 
-        if (include_zero) {
+        if (plot_style.include_zero) {
             layout.yaxis.rangemode = "tozero"
         }
 
@@ -268,7 +279,7 @@ function on_message(multi_series, msg_str) {
     }
 }
 
-function update_plots(multi_series, plot_style, include_zero) {
+function update_plots(multi_series, plot_style) {
     // plot the data
     for (const [key, series] of Object.entries(multi_series.all_series)) {
         let plot_id = "plot_" + key;
@@ -284,7 +295,7 @@ function update_plots(multi_series, plot_style, include_zero) {
         }
 
         // update the plot
-        let plot_obj = series.plot_obj(plot_style, include_zero);
+        let plot_obj = series.plot_obj(plot_style);
 
         if (first_time) {
             // noinspection JSUnresolvedFunction
@@ -296,9 +307,14 @@ function update_plots(multi_series, plot_style, include_zero) {
     }
 }
 
-function getCookie(key) {
+function getCookie(key, default_value) {
     // from https://stackoverflow.com/a/25490531/5517612
-    return document.cookie.match('(^|;)\\s*' + key + '\\s*=\\s*([^;]+)')?.pop()
+    let result = document.cookie.match('(^|;)\\s*' + key + '\\s*=\\s*([^;]+)')?.pop()
+
+    if (result === undefined) {
+        return default_value;
+    }
+    return result;
 }
 
 function setCookie(key, value) {
