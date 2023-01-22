@@ -106,10 +106,21 @@ def generate_csv(params: DownloadParams, database, csv_be_mode: bool):
 
 def generate_json(params: DownloadParams, database):
     series = Series.empty(Buckets(None, params.bucket_size))
-    items = database.fetch_series_items(params.bucket_size, params.oldest, params.newest)
-    series.extend_items(items)
 
-    json_str = simplejson.dumps(series.to_json())
+    # don't allow infinitely large json requests,
+    #   since we don't stream the output and could run out of memory
+    if params.oldest is None or params.newest is None or (params.newest - params.oldest) / params.bucket_size > 1e6:
+        error = "too many items requested"
+    else:
+        items = database.fetch_series_items(params.bucket_size, params.oldest, params.newest)
+        series.extend_items(items)
+        error = None
+
+    json_dict = series.to_json()
+    if error is not None:
+        json_dict["error"] = error
+
+    json_str = simplejson.dumps(json_dict)
     return app.response_class(json_str, mimetype="application/json")
 
 
