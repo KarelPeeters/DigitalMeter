@@ -5,9 +5,10 @@ from io import StringIO
 from typing import Optional
 
 import flask
+import simplejson
 from flask import Flask, Response, current_app, request
 
-from server.data import Database
+from server.data import Database, Series, Buckets
 
 app = Flask(__name__, static_url_path="", static_folder="../resources")
 
@@ -70,26 +71,11 @@ def parse_download_params(args, ty: str) -> DownloadParams:
     return DownloadParams(bucket_size, oldest, newest, ty)
 
 
-@app.route("/download/samples_<name>.<ty>")
-def download_csv(name: str, ty: str):
-    # name is only used to suggest a file name when downloading
-    _ = name
-
-    args = dict(request.args)
-    print(f"Responding to download with args '{args}' and type '{ty}'")
-
-    try:
-        params = parse_download_params(request.args, ty)
-    except ParseDownloadError as e:
-        return e.html
-
-    # open new temporary db connection
-    database = Database(current_app.config["database_path"])
-
+def generate_csv(params: DownloadParams, database):
     def generate():
         yield "timestamp,instant_power_1,instant_power_2,instant_power_3\n"
 
-        # convert data to csv in batches, using StringIO for string concatenation
+        # convert data to string in batches, using StringIO for string concatenation
         data = database.fetch_series_items(params.bucket_size, params.oldest, params.newest)
         while True:
             batch = data.fetchmany(10 * 1024)
@@ -105,6 +91,40 @@ def download_csv(name: str, ty: str):
         database.close()
 
     return app.response_class(generate(), mimetype="text/csv")
+
+
+def generate_json(params: DownloadParams, database):
+    series = Series.empty(Buckets(-1, params.bucket_size))
+    items = database.fetch_series_items(params.bucket_size, params.oldest, params.newest)
+    series.extend_items(items)
+
+    json_str = simplejson.dumps(series.to_json())
+    return app.response_class(json_str, mimetype="application/json")
+
+
+@app.route("/download/samples_<name>.<ty>")
+def download_samples(name: str, ty: str):
+    # name is only used to suggest a file name when downloading
+    _ = name
+
+    args = dict(request.args)
+    print(f"Responding to download with args '{args}' and type '{ty}'")
+
+    try:
+        params = parse_download_params(request.args, ty)
+    except ParseDownloadError as e:
+        return e.html
+
+    # open new temporary db connection
+    # TODO reuse these? and are we leaking anything?
+    database = Database(current_app.config["database_path"])
+
+    if params.type == DownloadType.CSV:
+        return generate_csv(params, database)
+    elif params.type == DownloadType.JSON:
+        return generate_json(params, database)
+    else:
+        return "<p>Unknown download type</p>"
 
 
 @app.route("/")
