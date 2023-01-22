@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>DigitalMeter - Custom</title>
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+
+<div>
+    <!-- prevent form submission-->
+    <form id="form" onsubmit="return false;">
+        <table>
+            <tr>
+                <td><label for="start">Start</label></td>
+                <td><input type="datetime-local" id="start" required="required"> <br></td>
+            </tr>
+            <tr>
+                <td><label for="end">End</label></td>
+                <td><input type="datetime-local" id="end" required="required"> <br></td>
+            </tr>
+            <tr>
+                <td><label for="resolution">Resolution (s)</label></td>
+                <td><input type="number" id="resolution" required="required"></td>
+            </tr>
+        </table>
+    </form>
+
+    <button onclick="preview()">Preview</button>
+    <button onclick="download()">Download</button>
+</div>
+
+<script>
+    function preview() {
+        let form = document.getElementById("form")
+        if (form.reportValidity()) {
+            console.log("Preview")
+            console.log(document.getElementById("start").value)
+            console.log(document.getElementById("end").value)
+            console.log(document.getElementById("resolution").value)
+        }
+    }
+
+    function download() {
+        let form = document.getElementById("form")
+        if (form.reportValidity()) {
+            console.log("Download")
+            console.log(document.getElementById("start").value)
+            console.log(document.getElementById("end").value)
+            console.log(document.getElementById("resolution").value)
+        }
+    }
+</script>
+
+</body>
+</html>
