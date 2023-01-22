@@ -7,6 +7,10 @@ class PlotStyle {
         this.radio_total = radio_total
         this.check_zero = check_zero
 
+        this.radio_split.checked = this.split_kind === "split"
+        this.radio_total.checked = this.split_kind !== "split"
+        this.check_zero.checked = this.include_zero
+
         this.radio_split.addEventListener("change", e => this.on_plot_setting_changed(e))
         this.radio_total.addEventListener("change", e => this.on_plot_setting_changed(e))
         this.check_zero.addEventListener("change", e => this.on_plot_setting_changed(e))
@@ -20,7 +24,7 @@ class PlotStyle {
 
         if (e.target === this.radio_total || e.target === this.radio_split) {
             this.split_kind = e.target.value
-            setCookie("split_kind", this.split_kind)
+            setCookie("plot_style", this.split_kind)
         } else if (e.target === this.check_zero) {
             this.include_zero = e.target.checked
             setCookie("include_zero", this.include_zero)
