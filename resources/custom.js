@@ -14,6 +14,7 @@ class State {
         this.input_start = document.getElementById("start")
         this.input_end = document.getElementById("end")
         this.input_resolution = document.getElementById("resolution")
+        this.output_expected_samples = document.getElementById("expected_samples")
 
         // set reasonable initial values: last day, one sample per minute
         this.tz_offset_ms = (new Date()).getTimezoneOffset() * (60 * 1000)
@@ -21,9 +22,27 @@ class State {
         this.input_end.value = (new Date(Date.now() - this.tz_offset_ms)).toISOString().slice(0, -8)
         this.input_resolution.value = 60
 
+        for (const element of [this.input_start, this.input_end, this.input_resolution]) {
+            element.addEventListener("change", () => this.on_input_change())
+        }
+
         // more event listeners
         document.getElementById("button_preview").addEventListener("click", (_) => this.preview());
         document.getElementById("button_download").addEventListener("click", (_) => this.download());
+
+        // initial update
+        this.on_input_change()
+    }
+
+    on_input_change() {
+        // check input validness
+        if (this.download_url_for_inputs("json") === undefined) {
+            this.output_expected_samples.innerText = ""
+        } else {
+            const delta_sec = (this.input_end.valueAsDate - this.input_start.valueAsDate) / 1000;
+            const samples = delta_sec / this.input_resolution.value;
+            this.output_expected_samples.innerText = Math.ceil(samples).toString()
+        }
     }
 
     preview() {
