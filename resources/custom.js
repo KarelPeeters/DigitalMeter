@@ -17,6 +17,9 @@ class State {
         this.input_format = new RadioGroup("input_format", getCookie("download_format", "csv"))
         this.output_expected_samples = document.getElementById("output_expected_samples")
 
+        this.button_preview = document.getElementById("button_preview");
+        this.button_download = document.getElementById("button_download");
+
         // set reasonable initial values: last day, one sample per minute
         this.tz_offset_ms = (new Date()).getTimezoneOffset() * (60 * 1000)
         this.input_start.value = (new Date(Date.now() - this.tz_offset_ms - 24 * 3600 * 1000)).toISOString().slice(0, -8)
@@ -28,8 +31,8 @@ class State {
         }
 
         // more event listeners
-        document.getElementById("button_preview").addEventListener("click", (_) => this.preview());
-        document.getElementById("button_download").addEventListener("click", (_) => this.download());
+        this.button_preview.addEventListener("click", (_) => this.preview());
+        this.button_download.addEventListener("click", (_) => this.download());
 
         this.input_format.addChangeListener((format) => {
             setCookie("download_format", format);
@@ -43,10 +46,19 @@ class State {
         // check input validness
         if (this.download_url_for_inputs("json") === undefined) {
             this.output_expected_samples.innerText = ""
+
+            this.button_preview.disabled = true
+            this.button_download.disabled = true
         } else {
             const delta_sec = (this.input_end.valueAsDate - this.input_start.valueAsDate) / 1000;
             const samples = delta_sec / this.input_resolution.value;
+
             this.output_expected_samples.innerText = Math.ceil(samples).toString()
+
+            const positive = samples >= 0
+            const small = samples <= 1e6
+            this.button_preview.disabled = !(positive && small);
+            this.button_download.disabled = !positive
         }
     }
 
