@@ -15,6 +15,7 @@ app = Flask(__name__, static_url_path="", static_folder="../resources")
 
 class DownloadType(Enum):
     CSV = auto()
+    CSV_BE = auto()
     JSON = auto()
 
 
@@ -31,7 +32,7 @@ class ParseDownloadError(ValueError):
         self.html = html
 
 
-def parse_download_params(args, ty: str) -> DownloadParams:
+def parse_download_params(args, ext: str) -> DownloadParams:
     args = dict(args)
     curr_arg = None
 
@@ -52,9 +53,14 @@ def parse_download_params(args, ty: str) -> DownloadParams:
             newest = int(newest)
 
         curr_arg = "type"
-        if ty == "csv":
-            ty = DownloadType.CSV
-        elif ty == "json":
+        if ext == "csv":
+            csv_types = {
+                "csv": DownloadType.CSV,
+                "csv-be": DownloadType.CSV_BE,
+            }
+            csv_format = args.pop("format", "csv")
+            ty = csv_types[csv_format]
+        elif ext == "json":
             ty = DownloadType.JSON
         else:
             raise ValueError()
@@ -71,9 +77,11 @@ def parse_download_params(args, ty: str) -> DownloadParams:
     return DownloadParams(bucket_size, oldest, newest, ty)
 
 
-def generate_csv(params: DownloadParams, database):
+def generate_csv(params: DownloadParams, database, csv_be_mode: bool):
+    sep = "\t" if csv_be_mode else ","
+
     def generate():
-        yield "timestamp,instant_power_1,instant_power_2,instant_power_3\n"
+        yield f"timestamp{sep}instant_power_1{sep}instant_power_2{sep}instant_power_3\n"
 
         # convert data to string in batches, using StringIO for string concatenation
         data = database.fetch_series_items(params.bucket_size, params.oldest, params.newest)
@@ -84,7 +92,10 @@ def generate_csv(params: DownloadParams, database):
 
             writer = StringIO()
             for x in batch:
-                writer.write(",".join(str(d) for d in x) + "\n")
+                line = sep.join(str(d) for d in x) + "\n"
+                if csv_be_mode:
+                    line = line.replace(".", ",")
+                writer.write(line)
             yield writer.getvalue()
 
         # TODO if the user cancels the request this code does not run, are we leaking stuff?
@@ -102,16 +113,16 @@ def generate_json(params: DownloadParams, database):
     return app.response_class(json_str, mimetype="application/json")
 
 
-@app.route("/download/samples_<name>.<ty>")
-def download_samples(name: str, ty: str):
+@app.route("/download/samples_<name>.<ext>")
+def download_samples(name: str, ext: str):
     # name is only used to suggest a file name when downloading
     _ = name
 
     args = dict(request.args)
-    print(f"Responding to download with args '{args}' and type '{ty}'")
+    print(f"Responding to download with args '{args}' and type '{ext}'")
 
     try:
-        params = parse_download_params(request.args, ty)
+        params = parse_download_params(request.args, ext)
     except ParseDownloadError as e:
         return e.html
 
@@ -120,11 +131,14 @@ def download_samples(name: str, ty: str):
     database = Database(current_app.config["database_path"])
 
     if params.type == DownloadType.CSV:
-        return generate_csv(params, database)
+        return generate_csv(params, database, csv_be_mode=False)
+    elif params.type == DownloadType.CSV_BE:
+        return generate_csv(params, database, csv_be_mode=True)
     elif params.type == DownloadType.JSON:
         return generate_json(params, database)
     else:
-        return "<p>Unknown download type</p>"
+        ty_str = f"'{params.type}'"
+        return f"<p>Unknown download type {flask.escape(ty_str)}</p>"
 
 
 @app.route("/")

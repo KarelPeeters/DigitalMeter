@@ -1,43 +1,67 @@
+class RadioGroup {
+    constructor(name, value) {
+        this.name = name
+        this.value = value
+    }
+
+    get value() {
+        let element = document.querySelector('input[name="' + this.name + '"]:checked');
+        if (element === null) {
+            console.log("Invalid name for radio group", this.name)
+            return;
+        }
+        return element.value
+    }
+
+    set value(value) {
+        let element = document.querySelector('input[name="' + this.name + '"][value="' + value + '"]');
+        if (element === null) {
+            console.log("Invalid name or value for radio group", this.name, value)
+            return;
+        }
+        element.checked = true
+    }
+
+    addChangeListener(f) {
+        for (const element of document.querySelectorAll('input[name="' + this.name + '"]')) {
+            element.addEventListener("change", e => f(e.target.value))
+        }
+    }
+}
+
 class PlotStyle {
     constructor(radio_split, radio_total, check_zero, on_change) {
         this.split_kind = getCookie("plot_style", "split")
         this.include_zero = getCookie("include_zero", false) === "true"
 
-        this.radio_split = radio_split
-        this.radio_total = radio_total
-        this.check_zero = check_zero
+        this.radio_split = new RadioGroup("split_kind", this.split_kind)
 
-        this.radio_split.checked = this.split_kind === "split"
-        this.radio_total.checked = this.split_kind !== "split"
+        this.check_zero = check_zero
         this.check_zero.checked = this.include_zero
 
-        this.radio_split.addEventListener("change", e => this.on_plot_setting_changed(e))
-        this.radio_total.addEventListener("change", e => this.on_plot_setting_changed(e))
-        this.check_zero.addEventListener("change", e => this.on_plot_setting_changed(e))
+        this.radio_split.addChangeListener(split_kind => {
+            this.on_plot_setting_changed(split_kind, this.include_zero)
+        })
+        this.check_zero.addEventListener("change", () => {
+            this.on_plot_setting_changed(this.split_kind, this.check_zero.checked)
+        })
 
         this.on_change = on_change
     }
 
-    on_plot_setting_changed(e) {
-        let old_split_kind = this.split_kind
-        let old_zero = this.include_zero
-
-        if (e.target === this.radio_total || e.target === this.radio_split) {
-            this.split_kind = e.target.value
-            setCookie("plot_style", this.split_kind)
-        } else if (e.target === this.check_zero) {
-            this.include_zero = e.target.checked
-            setCookie("include_zero", this.include_zero)
-        } else {
-            console.log("Unexpected event target", e, e.target);
-        }
-
+    on_plot_setting_changed(split_kind, include_zero) {
+        const changed = split_kind !== this.split_kind || include_zero !== this.include_zero;
+        if (!changed) return
         console.log("Style changed to", this.split_kind, this.include_zero)
 
-        if (this.split_kind !== old_split_kind || this.include_zero !== old_zero) {
-            // queue callback
-            setTimeout(this.on_change, 0)
-        }
+        // save values
+        this.split_kind = split_kind
+        this.include_zero = include_zero
+        setCookie("plot_style", split_kind)
+        setCookie("include_zero", include_zero)
+
+        // queue callback
+        setTimeout(this.on_change, 0)
     }
 }
 

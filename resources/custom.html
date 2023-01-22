@@ -12,20 +12,27 @@
     <form id="form" onsubmit="return false;">
         <table>
             <tr>
-                <td><label for="start">Start</label></td>
-                <td><input type="datetime-local" id="start" required="required"> <br></td>
+                <td><label for="input_start">Start</label></td>
+                <td><input type="datetime-local" id="input_start" required="required"> <br></td>
             </tr>
             <tr>
-                <td><label for="end">End</label></td>
-                <td><input type="datetime-local" id="end" required="required"> <br></td>
+                <td><label for="input_end">End</label></td>
+                <td><input type="datetime-local" id="input_end" required="required"> <br></td>
             </tr>
             <tr>
-                <td><label for="resolution">Resolution (s)</label></td>
-                <td><input type="number" id="resolution" required="required"></td>
+                <td><label for="input_res">Resolution (s)</label></td>
+                <td><input type="number" id="input_res" required="required"></td>
+            </tr>
+            <tr>
+                <td><div>Format</div></td>
+                <td>
+                    <label><input type="radio" name="input_format" value="csv" checked="checked">CSV</label>
+                    <label><input type="radio" name="input_format" value="csv-be">Tab/Comma</label>
+                </td>
             </tr>
             <tr>
                 <td><div>Expected samples</div></td>
-                <td><div id="expected_samples"></div></td>
+                <td><div id="output_expected_samples"></div></td>
             </tr>
         </table>
     </form>
@@ -36,11 +43,11 @@
     <div>
         <label>Plot settings:</label>
         <label>
-            <input id="radio_split" type="radio" name="plot_type" value="split" checked="checked">
+            <input type="radio" name="split_kind" value="split" checked="checked">
             Split
         </label>
         <label>
-            <input id="radio_total" type="radio" name="plot_type" value="total">
+            <input type="radio" name="split_kind" value="total">
             Total
         </label>
         <label>

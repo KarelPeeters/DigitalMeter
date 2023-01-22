@@ -11,10 +11,11 @@ class State {
         this.first_plot_update = true
 
         this.form = document.getElementById("form")
-        this.input_start = document.getElementById("start")
-        this.input_end = document.getElementById("end")
-        this.input_resolution = document.getElementById("resolution")
-        this.output_expected_samples = document.getElementById("expected_samples")
+        this.input_start = document.getElementById("input_start")
+        this.input_end = document.getElementById("input_end")
+        this.input_resolution = document.getElementById("input_res")
+        this.input_format = new RadioGroup("input_format", getCookie("download_format", "csv"))
+        this.output_expected_samples = document.getElementById("output_expected_samples")
 
         // set reasonable initial values: last day, one sample per minute
         this.tz_offset_ms = (new Date()).getTimezoneOffset() * (60 * 1000)
@@ -29,6 +30,10 @@ class State {
         // more event listeners
         document.getElementById("button_preview").addEventListener("click", (_) => this.preview());
         document.getElementById("button_download").addEventListener("click", (_) => this.download());
+
+        this.input_format.addChangeListener((format) => {
+            setCookie("download_format", format);
+        })
 
         // initial update
         this.on_input_change()
@@ -81,12 +86,17 @@ class State {
         let start = (this.input_start.valueAsDate.getTime() + this.tz_offset_ms) / 1000.
         let end = (this.input_end.valueAsDate.getTime() + this.tz_offset_ms) / 1000.
 
-        let params = new URLSearchParams({
+        let param_dict = {
             "bucket_size": this.input_resolution.value,
             "oldest": start,
             "newest": end,
-        })
+        }
+        if (type === "csv") {
+            param_dict.format = this.input_format.value
+        }
 
+        // noinspection JSCheckFunctionSignatures
+        let params = new URLSearchParams(param_dict)
         return "../download/samples_custom." + type + "?" + params
     }
 
