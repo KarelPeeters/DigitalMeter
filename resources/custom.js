@@ -113,7 +113,7 @@ class State {
     }
 
     update_plot() {
-        let plot_obj = this.series.plot_obj(this.plot_style);
+        let plot_obj = this.series.plot_obj(this.plot_style, true);
         if (this.first_plot_update) {
             // noinspection JSUnresolvedFunction
             Plotly.newPlot(this.plot, plot_obj);

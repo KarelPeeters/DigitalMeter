@@ -148,7 +148,7 @@ class Series {
         }
     }
 
-    plot_obj(plot_style) {
+    plot_obj(plot_style, interactive=false) {
         // data
         let data = []
 
@@ -212,7 +212,7 @@ class Series {
 
         // config
         let config = {
-            staticPlot: true,
+            staticPlot: !interactive,
         };
 
         return {
