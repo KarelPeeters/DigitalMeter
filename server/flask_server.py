@@ -94,7 +94,7 @@ def generate_csv(params: DownloadParams, database):
 
 
 def generate_json(params: DownloadParams, database):
-    series = Series.empty(Buckets(-1, params.bucket_size))
+    series = Series.empty(Buckets(None, params.bucket_size))
     items = database.fetch_series_items(params.bucket_size, params.oldest, params.newest)
     series.extend_items(items)
 

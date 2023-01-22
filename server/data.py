@@ -88,7 +88,7 @@ class Database:
 
 @dataclass
 class Buckets:
-    window_size: int
+    window_size: Optional[int]
     bucket_size: int
 
     def bucket_bounds(self, timestamp: int) -> (int, int):
@@ -96,6 +96,8 @@ class Buckets:
         Compute the bounds `min` (inclusive), `max` (exclusive) of all finished buckets,
         assuming the sample with `timestamp` is the latest one in the database.
         """
+        assert self.window_size is not None, "Cannot get bounds of bucket without window size"
+
         oldest = (timestamp + 1) // self.bucket_size * self.bucket_size - self.window_size
         newest = (timestamp + 1) // self.bucket_size * self.bucket_size
         return oldest, newest
@@ -137,7 +139,7 @@ class Series:
         )
 
     def _drop_old(self):
-        if len(self.timestamps) == 0:
+        if len(self.timestamps) == 0 or self.buckets.window_size is None:
             return
         newest = self.timestamps[-1]
         self.drop_before(newest - self.buckets.window_size)

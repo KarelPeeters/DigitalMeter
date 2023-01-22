@@ -26,65 +26,31 @@
         </table>
     </form>
 
-    <button onclick="preview()">Preview</button>
-    <button onclick="download()">Download</button>
+    <button id="button_preview">Preview</button>
+    <button id="button_download">Download</button>
+
+    <div>
+        <label>Plot settings:</label>
+        <label>
+            <input id="radio_split" type="radio" name="plot_type" value="split" checked="checked">
+            Split
+        </label>
+        <label>
+            <input id="radio_total" type="radio" name="plot_type" value="total">
+            Total
+        </label>
+        <label>
+            <input id="check_include_zero" type="checkbox">
+            Include zero
+        </label>
+    </div>
 
     <div id="plot"></div>
 </div>
 
+<script src="https://cdn.plot.ly/plotly-2.14.0.min.js"></script>
 <script src="common.js"></script>
-<script>
-    let form = document.getElementById("form")
-    let input_start = document.getElementById("start")
-    let input_end = document.getElementById("end")
-    let input_resolution = document.getElementById("resolution")
-
-    // set reasonable initial values: last day, one sample per minute
-    let tz_offset_ms = (new Date()).getTimezoneOffset() * (60 * 1000)
-    input_start.value = (new Date(Date.now() - tz_offset_ms - 24 * 3600 * 1000)).toISOString().slice(0, -8)
-    input_end.value = (new Date(Date.now() - tz_offset_ms)).toISOString().slice(0, -8)
-    input_resolution.value = 60
-
-    function preview() {
-        let url = download_url_for_inputs("json")
-        if (url === undefined) return
-
-        window
-            .fetch(url)
-            .then((response) => response.json())
-            .then((data) => {
-                console.log("Fetch result:", data)
-            })
-    }
-
-    function download() {
-        let url = download_url_for_inputs("csv")
-        if (url === undefined) return
-
-        // from https://stackoverflow.com/a/49917066/5517612
-        const a = document.createElement("a")
-        a.href = url;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    }
-
-    function download_url_for_inputs(type) {
-        if (!form.reportValidity()) {
-            return undefined;
-        }
-        let start = (input_start.valueAsDate.getTime() + tz_offset_ms) / 1000.
-        let end = (input_end.valueAsDate.getTime() + tz_offset_ms) / 1000.
-
-        let params = new URLSearchParams({
-            "bucket_size": input_resolution.value,
-            "oldest": start,
-            "newest": end,
-        })
-
-        return "../download/samples_custom." + type + "?" + params
-    }
-</script>
+<script src="custom.js"></script>
 
 </body>
 </html>
