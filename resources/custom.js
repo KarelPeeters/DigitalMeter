@@ -17,6 +17,9 @@ class State {
         this.input_format = new RadioGroup("input_format", getCookie("download_format", "csv"))
         this.output_expected_samples = document.getElementById("output_expected_samples")
 
+        this.previews_running = 0
+        this.spinner = document.getElementById("spinner")
+
         this.button_preview = document.getElementById("button_preview");
         this.button_download = document.getElementById("button_download");
 
@@ -67,11 +70,20 @@ class State {
         let url = this.download_url_for_inputs("json")
         if (url === undefined) return
 
+        this.previews_running++;
+        this.spinner.style.visibility='visible'
+
         window
             .fetch(url)
             .then((response) => response.json())
             .then((data) => {
                 console.log("Preview data received")
+
+                this.previews_running--;
+                if (this.previews_running === 0) {
+                    this.spinner.style.visibility='hidden'
+                }
+
                 this.series = new Series()
                 this.series.push_update(data, false);
                 this.update_plot()
@@ -123,5 +135,5 @@ class State {
     }
 }
 
-// noinspection JSUnusedGlobalSymbols
+// noinspection JSUnusedGlobalSymbols,JSUnusedLocalSymbols
 const state = new State()
