@@ -187,9 +187,9 @@ def flask_main(database_path: str):
     print(f"Using SSL context {ssl_context}")
 
     threads = []
-    for port in [8000, 80]:
+    for (ssl, port) in [(False, 8000), (False, 80), (True, 443)]:
         def target():
-            app.run(host="0.0.0.0", port=port, threaded=True, ssl_context=ssl_context)
+            app.run(host="0.0.0.0", port=port, threaded=True, ssl_context=ssl_context if ssl else None)
 
         thread = Thread(target=target)
         thread.start()
