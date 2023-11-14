@@ -2,6 +2,7 @@ import mimetypes
 from dataclasses import dataclass
 from enum import auto, Enum
 from io import StringIO
+from threading import Thread
 from typing import Optional
 
 import flask
@@ -173,7 +174,18 @@ def flask_main(database_path: str):
     mimetypes.add_type("text/html", ".html")
 
     app.config["database_path"] = database_path
-    app.run(host="0.0.0.0", port=8000, threaded=True)
+
+    threads = []
+    for port in [8000, 80]:
+        def target():
+            app.run(host="0.0.0.0", port=port, threaded=True)
+
+        thread = Thread(target=target)
+        thread.start()
+        threads.append(thread)
+
+    for thread in threads:
+        thread.join()
 
 
 if __name__ == '__main__':
