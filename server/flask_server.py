@@ -1,4 +1,5 @@
 import mimetypes
+import os
 from dataclasses import dataclass
 from enum import auto, Enum
 from io import StringIO
@@ -175,10 +176,16 @@ def flask_main(database_path: str):
 
     app.config["database_path"] = database_path
 
+    ssl_dir = os.environ.get("DM_SSL_DIR")
+    if ssl_dir is not None:
+        ssl_context = (os.path.join(ssl_dir, "fullchain.pem"), os.path.join(ssl_dir, "privkey.pem"))
+    else:
+        ssl_context = None
+
     threads = []
     for port in [8000, 80]:
         def target():
-            app.run(host="0.0.0.0", port=port, threaded=True)
+            app.run(host="0.0.0.0", port=port, threaded=True, ssl_context=ssl_context)
 
         thread = Thread(target=target)
         thread.start()
