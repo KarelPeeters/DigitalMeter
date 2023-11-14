@@ -179,7 +179,7 @@ def flask_main(database_path: str):
     ssl_dir = os.environ.get("DM_SSL_DIR")
     if ssl_dir is not None:
         ssl_context = (
-            os.path.join(ssl_dir, "fullchain.pem"),
+            os.path.join(ssl_dir, "cert.pem"),
             os.path.join(ssl_dir, "privkey.pem"),
         )
     else:
