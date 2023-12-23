@@ -10,6 +10,7 @@ PATTERN_VALUE_TST = re.compile(r"^\((?P<timestamp>\d{12}[SW])\)\((?P<value>[^()]
 PATTERN_VALUE_SINGLE = re.compile(r"^\((?P<value>[^()]*)\)$")
 
 PATTERN_KWH = re.compile(r"^(?P<number>\d+\.\d+)\*kW$")
+PATTERN_M3 = re.compile(r"^(?P<number>\d+\.\d+)\*m3$")
 
 
 @dataclass
@@ -20,7 +21,7 @@ class MessageValue:
 
     @staticmethod
     def parse(full_value: str):
-        m = re.match(PATTERN_VALUE_TST, full_value)
+        m = PATTERN_VALUE_TST.match(full_value)
         if m:
             timestamp_str = m.groupdict()["timestamp"]
             timestamp = parse_timestamp(timestamp_str)
@@ -28,7 +29,7 @@ class MessageValue:
 
             return MessageValue(value, timestamp, timestamp_str)
 
-        m = re.match(PATTERN_VALUE_SINGLE, full_value)
+        m = PATTERN_VALUE_SINGLE.match(full_value)
         if m:
             value = m.groupdict()["value"]
             return MessageValue(value, 0, "unknown")
@@ -69,11 +70,22 @@ def parse_power(s: Optional[str]) -> float:
     if s is None:
         return math.nan
 
-    m = re.match(PATTERN_KWH, s)
+    m = PATTERN_KWH.match(s)
     if not m:
         return math.nan
 
     return float(m.group(1)) * 1000
+
+
+def parse_volume(s: Optional[str]) -> float:
+    if s is None:
+        return math.nan
+
+    m = PATTERN_M3.match(s)
+    if not m:
+        return math.nan
+
+    return float(m.group(1))
 
 
 def parse_timestamp(short_str: Optional[str]) -> int:
@@ -104,6 +116,9 @@ class Message:
     peak_power: float
     peak_power_timestamp: int
     peak_power_timestamp_str: str
+    gas_volume: float
+    gas_timestamp: int
+    gas_timestamp_str: str
 
     @staticmethod
     def from_raw(msg: RawMessage):
@@ -121,6 +136,8 @@ class Message:
         peak_power = map_value(peak_power_value, parse_power, math.nan)
         peak_power_timestamp = peak_power_value.timestamp if peak_power_value is not None else None
 
+        gas_value = msg.values.get("0-1:24.2.3")
+
         return Message(
             timestamp=timestamp,
             timestamp_str=timestamp_str.value if timestamp_str is not None else "unknown",
@@ -129,7 +146,10 @@ class Message:
             instant_power_3=instant_power_3,
             peak_power=peak_power,
             peak_power_timestamp=peak_power_timestamp,
-            peak_power_timestamp_str=peak_power_value.timestamp_str if peak_power_value is not None else "unknown"
+            peak_power_timestamp_str=peak_power_value.timestamp_str if peak_power_value is not None else "unknown",
+            gas_volume=map_value(gas_value, parse_volume, math.nan),
+            gas_timestamp=gas_value.timestamp if gas_value is not None else None,
+            gas_timestamp_str=gas_value.timestamp_str if gas_value is not None else "unknown"
         )
 
 
