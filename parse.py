@@ -10,6 +10,7 @@ PATTERN_VALUE_TST = re.compile(r"^\((?P<timestamp>\d{12}[SW])\)\((?P<value>[^()]
 PATTERN_VALUE_SINGLE = re.compile(r"^\((?P<value>[^()]*)\)$")
 
 PATTERN_KWH = re.compile(r"^(?P<number>\d+\.\d+)\*kW$")
+PATTERN_V = re.compile(r"^(?P<number>\d+\.\d+)\*V$")
 PATTERN_M3 = re.compile(r"^(?P<number>\d+\.\d+)\*m3$")
 
 
@@ -77,6 +78,17 @@ def parse_power(s: Optional[str]) -> float:
     return float(m.group(1)) * 1000
 
 
+def parse_voltage(s: Optional[str]) -> float:
+    if s is None:
+        return math.nan
+
+    m = PATTERN_V.match(s)
+    if not m:
+        return math.nan
+
+    return float(m.group(1)) * 1000
+
+
 def parse_volume(s: Optional[str]) -> float:
     if s is None:
         return math.nan
@@ -113,6 +125,9 @@ class Message:
     instant_power_1: float
     instant_power_2: float
     instant_power_3: float
+    voltage_1: float
+    voltage_2: float
+    voltage_3: float
     peak_power: float
     peak_power_timestamp: int
     peak_power_timestamp_str: str
@@ -132,6 +147,10 @@ class Message:
         instant_power_2 = map_value(msg.values.get("1-0:41.7.0"), parse_power, math.nan)
         instant_power_3 = map_value(msg.values.get("1-0:61.7.0"), parse_power, math.nan)
 
+        voltage_1 = map_value(msg.values.get("1-0:32.7.0"), parse_power, math.nan)
+        voltage_2 = map_value(msg.values.get("1-0:52.7.0"), parse_power, math.nan)
+        voltage_3 = map_value(msg.values.get("1-0:72.7.0"), parse_power, math.nan)
+
         peak_power_value = msg.values.get("1-0:1.6.0")
         peak_power = map_value(peak_power_value, parse_power, math.nan)
         peak_power_timestamp = peak_power_value.timestamp if peak_power_value is not None else None
@@ -144,6 +163,9 @@ class Message:
             instant_power_1=instant_power_1,
             instant_power_2=instant_power_2,
             instant_power_3=instant_power_3,
+            voltage_1=voltage_1,
+            voltage_2=voltage_2,
+            voltage_3=voltage_3,
             peak_power=peak_power,
             peak_power_timestamp=peak_power_timestamp,
             peak_power_timestamp_str=peak_power_value.timestamp_str if peak_power_value is not None else "unknown",
