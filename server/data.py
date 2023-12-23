@@ -21,7 +21,10 @@ class Database:
             "    timestamp_str TEXT,"
             "    instant_power_1 REAL,"
             "    instant_power_2 REAL,"
-            "    instant_power_3 REAL"
+            "    instant_power_3 REAL,"
+            "    voltage_1 REAL,"
+            "    voltage_2 REAL,"
+            "    voltage_3 REAL"
             ")"
         )
         self.conn.execute(
@@ -31,18 +34,31 @@ class Database:
             "    instant_power_total REAL"
             ")"
         )
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS gas_samples("
+            "    timestamp INTEGER PRIMARY KEY,"
+            "    timestamp_str TEXT,"
+            "    volume REAL"
+            ")"
+        )
         self.conn.commit()
 
     def insert(self, msg: Message):
         if msg.timestamp is not None:
             self.conn.execute(
-                "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?, ?)",
-                (msg.timestamp, msg.timestamp_str, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3),
+                "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+                (msg.timestamp, msg.timestamp_str, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3,
+                 msg.voltage_1, msg.voltage_2, msg.voltage_3),
             )
         if msg.peak_power_timestamp is not None:
             self.conn.execute(
                 "INSERT OR REPLACE INTO meter_peaks VALUES(?, ?, ?)",
                 (msg.peak_power_timestamp, msg.peak_power_timestamp_str, msg.peak_power)
+            )
+        if msg.gas_timestamp is not None:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO gas_samples VALUES(?, ?, ?)",
+                (msg.gas_timestamp, msg.gas_timestamp_str, msg.gas_volume)
             )
         self.conn.commit()
 
