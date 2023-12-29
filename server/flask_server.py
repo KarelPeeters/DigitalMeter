@@ -139,7 +139,6 @@ def generate_json(params: DownloadParams, database):
         json_dict["error"] = error
 
     json_str = simplejson.dumps(json_dict)
-    print(json_str)
     return app.response_class(json_str, mimetype="application/json")
 
 
