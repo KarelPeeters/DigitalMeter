@@ -9,7 +9,7 @@ import flask
 import simplejson
 from flask import Flask, Response, current_app, request
 
-from server.data import Database, Series, Buckets
+from server.data import Database, Series, Buckets, SeriesKind
 
 app = Flask(__name__, static_url_path="", static_folder="../resources")
 
@@ -22,10 +22,11 @@ class DownloadType(Enum):
 
 @dataclass
 class DownloadParams:
-    bucket_size: int
+    bucket_size: Optional[int]
     oldest: Optional[int]
     newest: Optional[int]
     type: DownloadType
+    kind: SeriesKind
 
 
 class ParseDownloadError(ValueError):
@@ -38,11 +39,6 @@ def parse_download_params(args, ext: str) -> DownloadParams:
     curr_arg = None
 
     try:
-        curr_arg = "bucket_size"
-        bucket_size = int(args.pop("bucket_size"))
-        if bucket_size < 1:
-            raise ValueError()
-
         curr_arg = "oldest"
         oldest = args.pop("oldest", None)
         if oldest is not None:
@@ -52,6 +48,24 @@ def parse_download_params(args, ext: str) -> DownloadParams:
         newest = args.pop("newest", None)
         if newest is not None:
             newest = int(newest)
+
+        curr_arg = "bucket_size"
+        bucket_size = args.pop("bucket_size")
+        if bucket_size == "null":
+            bucket_size = None
+        else:
+            bucket_size = int()
+            if bucket_size < 1:
+                raise ValueError()
+
+        curr_arg = "quantity"
+        quantity = args.pop("quantity", None)
+        if quantity == "power":
+            quantity = SeriesKind.POWER
+        elif quantity == "gas":
+            quantity = SeriesKind.GAS
+        else:
+            raise ValueError()
 
         curr_arg = "type"
         if ext == "csv":
@@ -75,17 +89,18 @@ def parse_download_params(args, ext: str) -> DownloadParams:
     if len(args) > 0:
         raise ParseDownloadError(f"<p>Unused parameters {flask.escape(list(args.keys()))}</p>")
 
-    return DownloadParams(bucket_size, oldest, newest, ty)
+    return DownloadParams(bucket_size, oldest, newest, ty, quantity)
 
 
 def generate_csv(params: DownloadParams, database, csv_be_mode: bool):
     sep = "\t" if csv_be_mode else ","
 
     def generate():
-        yield f"timestamp{sep}instant_power_1{sep}instant_power_2{sep}instant_power_3\n"
+        titles = ["timestamp"] + params.kind.value.columns
+        yield sep.join(titles) + "\n"
 
         # convert data to string in batches, using StringIO for string concatenation
-        data = database.fetch_series_items(params.bucket_size, params.oldest, params.newest)
+        data = database.fetch_series_items(params.kind, params.bucket_size, params.oldest, params.newest)
         while True:
             batch = data.fetchmany(10 * 1024)
             if len(batch) == 0:
@@ -106,14 +121,16 @@ def generate_csv(params: DownloadParams, database, csv_be_mode: bool):
 
 
 def generate_json(params: DownloadParams, database):
-    series = Series.empty(Buckets(None, params.bucket_size))
+    series = Series.empty(params.kind, Buckets(None, params.bucket_size))
 
     # don't allow infinitely large json requests,
     #   since we don't stream the output and could run out of memory
-    if params.oldest is None or params.newest is None or (params.newest - params.oldest) / params.bucket_size > 1e6:
+    # TODO properly handle missing bucket size here
+    if (params.oldest is None or params.newest is None or
+            (params.bucket_size is not None and (params.newest - params.oldest) / params.bucket_size > 1e6)):
         error = "too many items requested"
     else:
-        items = database.fetch_series_items(params.bucket_size, params.oldest, params.newest)
+        items = database.fetch_series_items(params.kind, params.bucket_size, params.oldest, params.newest)
         series.extend_items(items)
         error = None
 
@@ -122,6 +139,7 @@ def generate_json(params: DownloadParams, database):
         json_dict["error"] = error
 
     json_str = simplejson.dumps(json_dict)
+    print(json_str)
     return app.response_class(json_str, mimetype="application/json")
 
 
@@ -136,6 +154,7 @@ def download_samples(name: str, ext: str):
     try:
         params = parse_download_params(request.args, ext)
     except ParseDownloadError as e:
+        print(f"Error parsing download parameters: {e}")
         return e.html
 
     # open new temporary db connection

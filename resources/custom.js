@@ -15,7 +15,9 @@ class State {
         this.input_end = document.getElementById("input_end")
         this.input_resolution = document.getElementById("input_res")
         this.input_format = new RadioGroup("input_format", getCookie("download_format", "csv"))
+        this.input_quantity = new RadioGroup("input_quantity", "power")
         this.output_expected_samples = document.getElementById("output_expected_samples")
+        let input_elements = [this.input_start, this.input_end, this.input_resolution, this.input_format, this.input_quantity];
 
         this.previews_running = 0
         this.spinner = document.getElementById("spinner")
@@ -29,7 +31,7 @@ class State {
         this.input_end.value = (new Date(Date.now() - this.tz_offset_ms)).toISOString().slice(0, -8)
         this.input_resolution.value = 60
 
-        for (const element of [this.input_start, this.input_end, this.input_resolution]) {
+        for (const element of input_elements) {
             element.addEventListener("change", () => this.on_input_change())
         }
 
@@ -46,6 +48,11 @@ class State {
     }
 
     on_input_change() {
+        console.log("Input changed");
+
+        const is_gas = this.input_quantity.value === "gas";
+        this.input_resolution.disabled = is_gas;
+
         // check input validness
         if (this.download_url_for_inputs("json") === undefined) {
             this.output_expected_samples.innerText = ""
@@ -54,7 +61,14 @@ class State {
             this.button_download.disabled = true
         } else {
             const delta_sec = (this.input_end.valueAsDate - this.input_start.valueAsDate) / 1000;
-            const samples = delta_sec / this.input_resolution.value;
+            let samples;
+
+            if (is_gas) {
+                // approximate seconds between gas samples
+                samples = delta_sec / 300;
+            } else {
+                samples = delta_sec / this.input_resolution.value;
+            }
 
             this.output_expected_samples.innerText = Math.ceil(samples).toString()
 
@@ -71,8 +85,9 @@ class State {
         if (url === undefined) return
 
         this.previews_running++;
-        this.spinner.style.visibility='visible'
+        this.spinner.style.visibility = 'visible'
 
+        // TODO proper error handling
         window
             .fetch(url)
             .then((response) => response.json())
@@ -110,10 +125,13 @@ class State {
         let start = (this.input_start.valueAsDate.getTime() + this.tz_offset_ms) / 1000.
         let end = (this.input_end.valueAsDate.getTime() + this.tz_offset_ms) / 1000.
 
+        const is_gas = this.input_quantity.value === "gas";
+
         let param_dict = {
-            "bucket_size": this.input_resolution.value,
             "oldest": start,
             "newest": end,
+            "quantity": is_gas ? "gas" : "power",
+            "bucket_size": is_gas ? null : this.input_resolution.value,
         }
         if (type === "csv") {
             param_dict.format = this.input_format.value

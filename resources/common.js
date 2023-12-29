@@ -27,6 +27,14 @@ class RadioGroup {
             element.addEventListener("change", e => f(e.target.value))
         }
     }
+
+    addEventListener(event, f) {
+        if (event !== "change") {
+            console.log("Only change event supported for radio groups")
+            return
+        }
+        this.addChangeListener(f)
+    }
 }
 
 class PlotStyle {
