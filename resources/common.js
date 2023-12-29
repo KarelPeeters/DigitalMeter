@@ -106,7 +106,7 @@ class Series {
             let ts_int = series_data["timestamps"][i];
 
             // add padding values if necessary
-            if (this.last_timestamp_int !== 0) {
+            if (this.bucket_size !== null && this.last_timestamp_int !== 0) {
                 for (let j = this.last_timestamp_int + this.bucket_size; j < ts_int; j += this.bucket_size) {
                     timestamps.push(new Date(j * 1000));
                     for (let values of Object.values(all_values)) {

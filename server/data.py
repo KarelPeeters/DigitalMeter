@@ -100,14 +100,13 @@ class Database:
 
     # TODO decide a proper API for this, this kinda sucks
     #   maybe just have separate functions for power and gas, which then call an internal function?
-    def fetch_series_items(self, kind: SeriesKind, bucket_size: int, oldest: Optional[int], newest: Optional[int]):
+    def fetch_series_items(self, kind: SeriesKind, bucket_size: Optional[int], oldest: Optional[int], newest: Optional[int]):
         """
         Fetch the buckets between `oldest` (inclusive) and `newest` (exclusive)`.
         """
         where_clause = build_where_clause(oldest, newest)
 
-        # TODO change this to be "if recently there are multiple items per bucket"
-        if bucket_size == 1:
+        if bucket_size is None:
             return self.conn.execute(
                 "WITH const as (SELECT ? as oldest, ? as newest) "
                 f"SELECT timestamp, {', '.join(kind.value.columns)} "
@@ -136,7 +135,7 @@ class Database:
 @dataclass
 class Buckets:
     window_size: Optional[int]
-    bucket_size: int
+    bucket_size: Optional[int]
 
     def bucket_bounds(self, timestamp: int) -> (int, int):
         """
@@ -144,6 +143,8 @@ class Buckets:
         assuming the sample with `timestamp` is the latest one in the database.
         """
         assert self.window_size is not None, "Cannot get bounds of bucket without window size"
+        if self.bucket_size is None:
+            return timestamp - self.window_size, timestamp + 1
 
         oldest = (timestamp + 1) // self.bucket_size * self.bucket_size - self.window_size
         newest = (timestamp + 1) // self.bucket_size * self.bucket_size
@@ -201,6 +202,7 @@ class Series:
             self.timestamps.append(timestamp)
             for i, value in enumerate(values):
                 self.values[i].append(value)
+
         self._drop_old()
 
 
@@ -228,7 +230,8 @@ class Tracker:
             "hour": Series.empty(SeriesKind.POWER, Buckets(60 * 60, 10)),
             "day": Series.empty(SeriesKind.POWER, Buckets(24 * 60 * 60, 60)),
             "week": Series.empty(SeriesKind.POWER, Buckets(7 * 24 * 60 * 60, 15 * 60)),
-            "gas": Series.empty(SeriesKind.GAS, Buckets(7 * 24 * 60, 1)),
+            # TODO improve gas padding: add nan only if the gap is >2x the adjacent one
+            "gas": Series.empty(SeriesKind.GAS, Buckets(7 * 24 * 60 * 60, None)),
         })
 
     def process_message(self, database: Database, msg: Message):
@@ -245,9 +248,9 @@ class Tracker:
             if prev_timestamp is None:
                 # fetch the entire series
                 print(f"Fetching entire series for '{key}'")
-                new_items = (database.fetch_series_items(
+                new_items = database.fetch_series_items(
                     series.kind, series.buckets.bucket_size, curr_oldest, curr_newest
-                ).fetchall())
+                ).fetchall()
             else:
                 # only fetch new buckets if any
                 _, prev_newest = series.buckets.bucket_bounds(prev_timestamp)
