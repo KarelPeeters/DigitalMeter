@@ -83,6 +83,7 @@ class Series {
     constructor() {
         this.window_size = 0
         this.bucket_size = 0
+        this.unit_label = ""
 
         this.timestamps = []
         this.all_values = {}
@@ -98,6 +99,7 @@ class Series {
 
         this.window_size = series_data["window_size"];
         this.bucket_size = series_data["bucket_size"];
+        this.unit_label = series_data["unit_label"];
 
         // append data to state
         for (let i = 0; i < series_data["timestamps"].length; i++) {
@@ -148,7 +150,7 @@ class Series {
         }
     }
 
-    plot_obj(plot_style, interactive=false) {
+    plot_obj(plot_style, interactive = false) {
         // data
         let data = []
 
@@ -198,7 +200,7 @@ class Series {
             },
             yaxis: {
                 title: {
-                    text: "P (W)"
+                    text: this.unit_label,
                 }
             }
         };

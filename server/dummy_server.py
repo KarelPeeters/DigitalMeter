@@ -10,6 +10,7 @@ from server.main import server_main
 
 def run_dummy_parser(message_queue: QQueue):
     t = time.time()
+    start = t
 
     for _ in itertools.count():
         t = t + 1
@@ -25,8 +26,9 @@ def run_dummy_parser(message_queue: QQueue):
         ya = math.sin(t * 0.1) + random.random() * 0.1 + 4
         yb = math.sin(t * 0.2) + random.random() * 0.2 + 4
         yc = math.sin(t * 0.5) + random.random() * 0.05 + 4
+        g = 100 + 0.1 * (t - start) + random.random() * 0.1
 
-        msg = Message(int(t), "dummy", ya, yb, yc, math.nan, 0, "dummy")
+        msg = Message(int(t), "dummy", ya, yb, yc, ya/10, yb/10, yc/10, math.nan, 0, "dummy", g, int(t), "dummy")
         message_queue.put(msg)
 
 

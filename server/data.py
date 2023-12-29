@@ -1,3 +1,4 @@
+import enum
 import sqlite3
 from dataclasses import dataclass
 from threading import Lock
@@ -6,6 +7,41 @@ from typing import List, Dict, Optional, Set
 from janus import Queue as JQueue
 
 from parse import Message
+
+
+@dataclass
+class SeriesKindInfo:
+    name: str
+    table: str
+    columns: List[str]
+    unit_label: str
+
+
+class SeriesKind(enum.Enum):
+    POWER = SeriesKindInfo(
+        name="power",
+        table="meter_samples",
+        columns=["instant_power_1", "instant_power_2", "instant_power_3"],
+        unit_label="P (W)"
+    )
+    GAS = SeriesKindInfo(
+        name="gas",
+        table="gas_samples",
+        columns=["volume"],
+        unit_label="V (m^3)"
+    )
+
+
+def build_where_clause(oldest: Optional[int], newest: Optional[int]) -> str:
+    if oldest is not None and newest is not None:
+        where_clause = f"WHERE {oldest} <= timestamp AND timestamp < {newest} "
+    elif oldest is not None:
+        where_clause = f"WHERE {oldest} <= timestamp "
+    elif newest is not None:
+        where_clause = f"WHERE timestamp < {newest} "
+    else:
+        where_clause = ""
+    return where_clause
 
 
 class Database:
@@ -62,36 +98,31 @@ class Database:
             )
         self.conn.commit()
 
-    def fetch_series_items(self, bucket_size: int, oldest: Optional[int], newest: Optional[int]):
+    # TODO decide a proper API for this, this kinda sucks
+    #   maybe just have separate functions for power and gas, which then call an internal function?
+    def fetch_series_items(self, kind: SeriesKind, bucket_size: int, oldest: Optional[int], newest: Optional[int]):
         """
         Fetch the buckets between `oldest` (inclusive) and `newest` (exclusive)`.
         """
-        if oldest is not None and newest is not None:
-            where_clause = f"WHERE {oldest} <= timestamp AND timestamp < {newest} "
-        elif oldest is not None:
-            where_clause = f"WHERE {oldest} <= timestamp "
-        elif newest is not None:
-            where_clause = f"WHERE timestamp < {newest} "
-        else:
-            where_clause = ""
+        where_clause = build_where_clause(oldest, newest)
 
+        # TODO change this to be "if recently there are multiple items per bucket"
         if bucket_size == 1:
             return self.conn.execute(
                 "WITH const as (SELECT ? as oldest, ? as newest) "
-                "SELECT timestamp, instant_power_1, instant_power_2, instant_power_3 "
-                "FROM meter_samples, const "
+                f"SELECT timestamp, {', '.join(kind.value.columns)} "
+                f"FROM {kind.value.table}, const "
                 f"{where_clause}"
                 "ORDER BY timestamp ",
                 (oldest, newest)
             )
         else:
+            averages = ",\n".join(f"AVG({item})" for item in kind.value.columns)
             return self.conn.execute(
                 "WITH const as (SELECT ? as bucket_size, ? as oldest, ? as newest) "
                 "SELECT timestamp / bucket_size * bucket_size, "
-                "AVG(instant_power_1),"
-                "AVG(instant_power_2),"
-                "AVG(instant_power_3)"
-                "FROM meter_samples, const "
+                f"{averages}"
+                f"FROM {kind.value.table}, const "
                 f"{where_clause}"
                 "GROUP BY timestamp / bucket_size "
                 "ORDER BY timestamp ",
@@ -121,37 +152,34 @@ class Buckets:
 
 @dataclass
 class Series:
+    kind: SeriesKind
     buckets: Buckets
 
     timestamps: List[int]
-    instant_power_1: List[float]
-    instant_power_2: List[float]
-    instant_power_3: List[float]
+    values: List[List[float]]
 
     @staticmethod
-    def empty(buckets: Buckets):
-        return Series(buckets, [], [], [], [])
+    def empty(kind: SeriesKind, buckets: Buckets):
+        return Series(kind=kind, buckets=buckets, timestamps=[], values=[[] for _ in kind.value.columns])
 
     def to_json(self):
         return {
             "window_size": self.buckets.window_size,
             "bucket_size": self.buckets.bucket_size,
+            "kind": self.kind.value.name,
+            "unit_label": self.kind.value.unit_label,
 
             "timestamps": self.timestamps,
-            "values": {
-                "p1": self.instant_power_1,
-                "p2": self.instant_power_2,
-                "p3": self.instant_power_3,
-            }
+            "values": self.values,
         }
 
     def clone(self):
         return Series(
-            self.buckets,
-            list(self.timestamps),
-            list(self.instant_power_1),
-            list(self.instant_power_2),
-            list(self.instant_power_3),
+            kind=self.kind,
+            buckets=self.buckets,
+
+            timestamps=list(self.timestamps),
+            values=[list(x) for x in self.values]
         )
 
     def _drop_old(self):
@@ -162,24 +190,18 @@ class Series:
 
     def drop_before(self, oldest):
         kept_index = next((i for i, t in enumerate(self.timestamps) if t >= oldest), 0)
-        arrays = [self.timestamps, self.instant_power_1, self.instant_power_2, self.instant_power_3]
-        for arr in arrays:
+
+        del self.timestamps[:kept_index]
+        for arr in self.values:
             del arr[:kept_index]
 
     def extend_items(self, items):
-        for t, p1, p2, p3 in items:
-            self.timestamps.append(t)
-            self.instant_power_1.append(p1)
-            self.instant_power_2.append(p2)
-            self.instant_power_3.append(p3)
-        self._drop_old()
-
-    def append_msg(self, msg: Message):
-        self.timestamps.append(msg.timestamp)
-        self.instant_power_1.append(msg.instant_power_1)
-        self.instant_power_2.append(msg.instant_power_2)
-        self.instant_power_3.append(msg.instant_power_3)
-        self._drop_old()
+        for line in items:
+            timestamp, *values = line
+            self.timestamps.append(timestamp)
+            for i, value in enumerate(values):
+                self.values[i].append(value)
+            self._drop_old()
 
 
 @dataclass
@@ -202,10 +224,11 @@ class Tracker:
         self.last_timestamp: Optional[int] = None
 
         self.multi_series = MultiSeries({
-            "minute": Series.empty(Buckets(60, 1)),
-            "hour": Series.empty(Buckets(60 * 60, 10)),
-            "day": Series.empty(Buckets(24 * 60 * 60, 60)),
-            "week": Series.empty(Buckets(7 * 24 * 60 * 60, 15 * 60)),
+            "minute": Series.empty(SeriesKind.POWER, Buckets(60, 1)),
+            "hour": Series.empty(SeriesKind.POWER, Buckets(60 * 60, 10)),
+            "day": Series.empty(SeriesKind.POWER, Buckets(24 * 60 * 60, 60)),
+            "week": Series.empty(SeriesKind.POWER, Buckets(7 * 24 * 60 * 60, 15 * 60)),
+            "gas": Series.empty(SeriesKind.GAS, Buckets(7 * 24 * 60, 1)),
         })
 
     def process_message(self, database: Database, msg: Message):
@@ -222,7 +245,9 @@ class Tracker:
             if prev_timestamp is None:
                 # fetch the entire series
                 print(f"Fetching entire series for '{key}'")
-                new_items = database.fetch_series_items(series.buckets.bucket_size, curr_oldest, curr_newest).fetchall()
+                new_items = (database.fetch_series_items(
+                    series.kind, series.buckets.bucket_size, curr_oldest, curr_newest
+                ).fetchall())
             else:
                 # only fetch new buckets if any
                 _, prev_newest = series.buckets.bucket_bounds(prev_timestamp)
@@ -230,14 +255,15 @@ class Tracker:
                     continue
                 else:
                     # print(f"Fetching new buckets for '{key}'")
-                    new_items = database.fetch_series_items(series.buckets.bucket_size, prev_newest,
-                                                            curr_newest).fetchall()
+                    new_items = database.fetch_series_items(
+                        series.kind, series.buckets.bucket_size, prev_newest, curr_newest
+                    ).fetchall()
 
             # put into cached series
             series.extend_items(new_items)
 
             # put into delta series
-            delta_series = Series.empty(series.buckets)
+            delta_series = Series.empty(series.kind, series.buckets)
             delta_series.extend_items(new_items)
             delta_multi_series.map[key] = delta_series
 
