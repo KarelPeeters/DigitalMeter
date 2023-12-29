@@ -201,7 +201,7 @@ class Series:
             self.timestamps.append(timestamp)
             for i, value in enumerate(values):
                 self.values[i].append(value)
-            self._drop_old()
+        self._drop_old()
 
 
 @dataclass
@@ -258,6 +258,10 @@ class Tracker:
                     new_items = database.fetch_series_items(
                         series.kind, series.buckets.bucket_size, prev_newest, curr_newest
                     ).fetchall()
+
+            # skip processing and sending message if there are no new items
+            if len(new_items) == 0:
+                continue
 
             # put into cached series
             series.extend_items(new_items)
