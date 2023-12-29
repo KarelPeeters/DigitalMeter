@@ -54,7 +54,7 @@ def parse_download_params(args, ext: str) -> DownloadParams:
         if bucket_size == "null":
             bucket_size = None
         else:
-            bucket_size = int()
+            bucket_size = int(bucket_size)
             if bucket_size < 1:
                 raise ValueError()
 
