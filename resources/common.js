@@ -92,6 +92,7 @@ class Series {
         this.window_size = 0
         this.bucket_size = 0
         this.unit_label = ""
+        this.kind = ""
 
         this.timestamps = []
         this.all_values = {}
@@ -108,6 +109,7 @@ class Series {
         this.window_size = series_data["window_size"];
         this.bucket_size = series_data["bucket_size"];
         this.unit_label = series_data["unit_label"];
+        this.kind = series_data["kind"];
 
         // append data to state
         for (let i = 0; i < series_data["timestamps"].length; i++) {
@@ -216,7 +218,7 @@ class Series {
         if (this.window_size !== null) {
             layout.xaxis.range = [this.last_timestamp_date - this.window_size * 1000, this.last_timestamp_date]
         }
-        if (plot_style.include_zero) {
+        if (plot_style.include_zero && this.kind === "power") {
             layout.yaxis.rangemode = "tozero"
         }
 
