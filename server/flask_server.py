@@ -178,10 +178,10 @@ def root():
 
 @app.after_request
 def add_headers(response: Response):
-    response.cache_control.no_cache = True
-    response.cache_control.no_store = True
-    response.cache_control.must_revalidate = True
-    response.expires = 0
+    # response.cache_control.no_cache = True
+    # response.cache_control.no_store = True
+    # response.cache_control.must_revalidate = True
+    # response.expires = 0
     return response
 
 
