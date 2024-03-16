@@ -12,16 +12,16 @@ pin_reset_n.value = 1
 
 def reset():
     pin_reset_n.value = 0
-    time.sleep(0.01)
+    time.sleep(0.1)
     pin_reset_n.value = 1
-    time.sleep(0.01)
+    time.sleep(0.1)
 
 
 def next():
     pin_next_n.value = 0
-    time.sleep(0.01)
+    time.sleep(0.1)
     pin_next_n.value = 1
-    time.sleep(0.01)
+    time.sleep(0.1)
 
 
 def readout():
