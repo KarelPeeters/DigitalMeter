@@ -269,7 +269,7 @@ class Tracker:
         prev_timestamp = self.last_timestamp
         curr_timestamp = msg.timestamp
 
-        if curr_timestamp <= self.last_timestamp:
+        if self.last_timestamp is not None and curr_timestamp <= self.last_timestamp:
             return
 
         self.last_timestamp = curr_timestamp
