@@ -130,7 +130,7 @@ class State {
         let param_dict = {
             "oldest": start,
             "newest": end,
-            "quantity": is_gas ? "gas" : "power",
+            "quantity": this.input_quantity.value,
             "bucket_size": is_gas ? null : this.input_resolution.value,
         }
         if (type === "csv") {
@@ -148,6 +148,7 @@ class State {
             // noinspection JSUnresolvedFunction
             Plotly.newPlot(this.plot, plot_obj);
         } else {
+            // noinspection JSUnresolvedFunction
             Plotly.react(this.plot, plot_obj);
         }
     }

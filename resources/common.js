@@ -218,7 +218,7 @@ class Series {
         if (this.window_size !== null) {
             layout.xaxis.range = [this.last_timestamp_date - this.window_size * 1000, this.last_timestamp_date]
         }
-        if (plot_style.include_zero && this.kind === "power") {
+        if (plot_style.include_zero && this.kind !== "gas") {
             layout.yaxis.rangemode = "tozero"
         }
 
