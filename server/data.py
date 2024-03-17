@@ -95,7 +95,7 @@ class Database:
         self.conn.commit()
 
     def insert(self, msg: Message) -> Set[str]:
-        print(f"Inserting {msg}")
+        # print(f"Inserting {msg}")
         updated_tables = set()
 
         if isinstance(msg, MeterMessage):
@@ -296,7 +296,7 @@ class Tracker:
                 if curr_newest == prev_newest:
                     continue
                 else:
-                    print(f"{key} fetching {prev_newest}..{curr_newest}")
+                    # print(f"{key} fetching {prev_newest}..{curr_newest}")
                     # print(f"Fetching new buckets for '{key}'")
                     new_items = database.fetch_series_items(
                         series.kind, series.buckets.bucket_size, prev_newest, curr_newest
