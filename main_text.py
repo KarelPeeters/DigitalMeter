@@ -2,9 +2,9 @@ from datetime import datetime
 
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.dates import DateFormatter, AutoDateFormatter, AutoDateLocator, ConciseDateFormatter
+from matplotlib.dates import DateFormatter, AutoDateLocator, ConciseDateFormatter
 
-from parse import Parser, Message
+from inputs.parse import Parser, Message
 
 
 def main():

@@ -1,6 +1,5 @@
 from queue import Queue as QQueue
 from threading import Thread
-from typing import Callable
 
 from server.data import DataStore, Database
 from server.flask_server import flask_main

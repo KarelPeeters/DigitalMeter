@@ -4,7 +4,7 @@ import os
 import sqlite3
 import time
 
-from parse import Parser, Message
+from inputs.parse import Parser, Message
 
 
 def iter_messages(path: str):

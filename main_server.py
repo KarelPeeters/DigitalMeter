@@ -3,7 +3,7 @@ from threading import Thread
 
 import serial
 
-from parse import Parser, Message
+from inputs.parse import Parser, Message
 from server.main import server_main
 
 

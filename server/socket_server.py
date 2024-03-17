@@ -1,6 +1,5 @@
 import asyncio
 import functools
-from queue import Queue as QQueue
 
 import simplejson
 import websockets

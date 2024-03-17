@@ -1,6 +1,6 @@
 import serial
 
-from parse import Parser, Message
+from inputs.parse import Parser, Message
 
 
 def main():

@@ -6,7 +6,7 @@ from typing import List, Dict, Optional, Set
 
 from janus import Queue as JQueue
 
-from parse import Message
+from inputs.parse import Message
 
 
 @dataclass

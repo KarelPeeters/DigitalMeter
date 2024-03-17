@@ -5,7 +5,7 @@ import time
 from queue import Queue as QQueue
 from threading import Thread
 
-from parse import Message
+from inputs.parse import Message
 from server.main import server_main
 
 
