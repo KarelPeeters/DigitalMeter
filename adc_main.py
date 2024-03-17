@@ -9,19 +9,20 @@ pin_data = gpiozero.DigitalInputDevice("GPIO21")
 pin_reset_n.value = 1
 pin_reset_n.value = 1
 
+T=0.1
 
 def reset():
     pin_reset_n.value = 0
-    time.sleep(0.1)
+    time.sleep(T)
     pin_reset_n.value = 1
-    time.sleep(0.1)
+    time.sleep(T)
 
 
 def next():
     pin_next_n.value = 0
-    time.sleep(0.1)
+    time.sleep(T)
     pin_next_n.value = 1
-    time.sleep(0.1)
+    time.sleep(T)
 
 
 def readout():
