@@ -278,6 +278,7 @@ class Tracker:
                 new_items = database.fetch_series_items(
                     series.kind, series.buckets.bucket_size, curr_oldest, curr_newest_target
                 ).fetchall()
+                print(f"result: {len(new_items)}")
             else:
                 # only fetch new buckets if any
                 prev_newest = self.prev_newest[key]
