@@ -270,7 +270,7 @@ class Tracker:
             # TODO improve gas padding: add nan only if the gap is >2x the adjacent one
             "gas": Series.empty(SeriesKind.GAS, Buckets(7 * 24 * 60 * 60, None)),
             # "water": Series.empty(SeriesKind.WATER, Buckets(7 * 24 * 60 * 60, None)),
-            "water": Series.empty(SeriesKind.WATER, Buckets(5 * 60, None)),
+            "water": Series.empty(SeriesKind.WATER, Buckets(24 * 60 * 60, None)),
         })
 
     def update(self, database: Database, updated_tables: Set[str], curr_timestamp: int) -> MultiSeries:
@@ -342,7 +342,11 @@ class DataStore:
             # update trackers
             # careful, we've already added the new values to the database
             # TODO we're sending two messages in a short timespan (eg. if power and water both update), fix this
-            update_series = self.tracker.update(self.database, updated_tables=updated_tables, curr_timestamp=msg.timestamp)
+            update_series = self.tracker.update(
+                self.database,
+                updated_tables=updated_tables,
+                curr_timestamp=msg.timestamp
+            )
 
             # broadcast update series to sockets
             for queue in self.broadcast_queues:
