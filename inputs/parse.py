@@ -119,7 +119,7 @@ def parse_timestamp(short_str: Optional[str]) -> int:
 
 
 @dataclass
-class Message:
+class MeterMessage:
     timestamp: int
     timestamp_str: str
     instant_power_1: float
@@ -157,7 +157,7 @@ class Message:
 
         gas_value = msg.values.get("0-1:24.2.3")
 
-        return Message(
+        return MeterMessage(
             timestamp=timestamp,
             timestamp_str=timestamp_str.value if timestamp_str is not None else "unknown",
             instant_power_1=instant_power_1,

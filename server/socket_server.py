@@ -1,6 +1,5 @@
 import asyncio
 import functools
-from queue import Queue as QQueue
 
 import simplejson
 import websockets
@@ -40,4 +39,5 @@ def socket_server_main(store: DataStore):
         async with websockets.serve(functools.partial(handler, store=store), "", 8001):
             await asyncio.Future()  # run forever
 
+    print("Starting socket server")
     asyncio.run(async_main())

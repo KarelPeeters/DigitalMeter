@@ -1,5 +1,9 @@
 janus~=1.0.0
 websockets~=10.4
 pyserial~=3.5
+gpiozero~=2.0.1
 simplejson~=3.18.0
 Flask~=2.2.1
+
+matplotlib~=3.8.2
+numpy~=1.26.2
