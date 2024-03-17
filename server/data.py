@@ -252,7 +252,7 @@ class MultiSeries:
 
 class Tracker:
     def __init__(self):
-        self.prev_timestamp: Dict[str, int] = {}
+        self.prev_newest: Dict[str, int] = {}
 
         self.multi_series = MultiSeries({
             "minute": Series.empty(SeriesKind.POWER, Buckets(60, 1)),
@@ -270,23 +270,23 @@ class Tracker:
 
         for key in self.multi_series.map:
             series = self.multi_series.map[key]
-            curr_oldest, curr_newest = series.buckets.bucket_bounds(curr_timestamp)
+            curr_oldest, curr_newest_target = series.buckets.bucket_bounds(curr_timestamp)
 
-            if key not in self.prev_timestamp:
+            if key not in self.prev_newest:
                 # fetch the entire series
                 print(f"Fetching entire series for '{key}'")
                 new_items = database.fetch_series_items(
-                    series.kind, series.buckets.bucket_size, curr_oldest, curr_newest
+                    series.kind, series.buckets.bucket_size, curr_oldest, curr_newest_target
                 ).fetchall()
             else:
                 # only fetch new buckets if any
-                _, prev_newest = series.buckets.bucket_bounds(self.prev_timestamp[key])
-                if curr_newest == prev_newest:
+                prev_newest = self.prev_newest[key]
+                if curr_newest_target == prev_newest:
                     continue
                 else:
                     # print(f"Fetching new buckets for '{key}'")
                     new_items = database.fetch_series_items(
-                        series.kind, series.buckets.bucket_size, prev_newest, curr_newest
+                        series.kind, series.buckets.bucket_size, prev_newest, curr_newest_target
                     ).fetchall()
 
             # skip processing and sending message if there are no new items
@@ -301,8 +301,9 @@ class Tracker:
             delta_series.extend_items(new_items)
             delta_multi_series.map[key] = delta_series
 
-            # update prev_timestamp
-            self.prev_timestamp[key] = curr_timestamp
+            # update prev_newest
+            if len(series.timestamps):
+                self.prev_newest[key] = series.timestamps[-1]
 
         return delta_multi_series
 

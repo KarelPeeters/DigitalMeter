@@ -51,7 +51,7 @@ def main():
 
     def main_adc(queue):
         adc = ArduinoADC()
-        adc_period = 1
+        adc_period = 2
         while True:
             time_start = time.perf_counter()
             msg = adc.readout_message()

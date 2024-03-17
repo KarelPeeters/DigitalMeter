@@ -42,7 +42,7 @@ def run_dummy_parser(message_queue: QQueue):
 def run_dummy_adc(queue: QQueue):
     while True:
         queue.put(ADCMessage(timestamp=int(time.time()), voltage_int=random.randrange(1024)))
-        time.sleep(10)
+        time.sleep(2)
 
 
 def main():
