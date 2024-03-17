@@ -266,15 +266,17 @@ class Tracker:
         })
 
     def process_message(self, database: Database, msg: MeterMessage):
+        delta_multi_series = MultiSeries({})
+
         prev_timestamp = self.last_timestamp
         curr_timestamp = msg.timestamp
-
-        if self.last_timestamp is not None and curr_timestamp <= self.last_timestamp:
-            return
-
         self.last_timestamp = curr_timestamp
 
-        delta_multi_series = MultiSeries({})
+        # skip everything if the timestamp hasn't changed
+        # TODO this is probably not fully correct, we might drop some values
+        #  if different messages for the same timestamp come in
+        if prev_timestamp is not None and curr_timestamp <= prev_timestamp:
+            return delta_multi_series
 
         for key in self.multi_series.map:
             series = self.multi_series.map[key]
