@@ -95,7 +95,7 @@ class Database:
         self.conn.commit()
 
     def insert(self, msg: Message):
-        print(f"Inserting {msg}")
+        # print(f"Inserting {msg}")
         if isinstance(msg, MeterMessage):
             if msg.timestamp is not None:
                 self.conn.execute(
@@ -328,17 +328,19 @@ class DataStore:
             self.database.insert(msg)
 
             # only update if the time has changed to avoid bugs
-            # TODO proper fix for this incremental updating stuff
-            if msg.timestamp != self.prev_timestamp:
+            # TODO proper fix for this incremental updating stuff (eg. don't compute buckets in DB, do this in python)
+            if self.prev_timestamp is None:
                 self.prev_timestamp = msg.timestamp
-
+            elif msg.timestamp != self.prev_timestamp:
                 # update trackers
                 # careful, we've already added the new values to the database
-                update_series = self.tracker.collect_update(self.database, msg.timestamp)
+                update_series = self.tracker.collect_update(self.database, self.prev_timestamp)
 
                 # broadcast update series to sockets
                 for queue in self.broadcast_queues:
                     queue.sync_q.put(update_series)
+
+                self.prev_timestamp = msg.timestamp
 
     def add_broadcast_queue_get_data(self, queue: JQueue) -> MultiSeries:
         with self.lock:
