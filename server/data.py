@@ -287,6 +287,7 @@ class Tracker:
                 if curr_newest == prev_newest:
                     continue
                 else:
+                    print(f"{key} fetching {prev_newest}..{curr_newest}")
                     # print(f"Fetching new buckets for '{key}'")
                     new_items = database.fetch_series_items(
                         series.kind, series.buckets.bucket_size, prev_newest, curr_newest
