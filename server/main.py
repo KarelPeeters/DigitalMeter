@@ -13,7 +13,7 @@ def run_message_processor(store: DataStore, message_queue: QQueue):
             print(f"WARNING: backlog of {q_size} messages")
 
         message = message_queue.get()
-        store.process_message(message)
+        store.process_message(message, last=q_size==0)
 
 
 def server_main(database_path: str, message_queue: QQueue):
