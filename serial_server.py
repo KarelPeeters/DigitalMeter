@@ -48,6 +48,6 @@ if __name__ == '__main__':
             run_serial_parser(queue, log)
 
 
-    thread = Thread(target=server_main, args=("data.db", generator))
-    thread.start()
-    thread.join()
+    message_queue = QQueue()
+    Thread(target=generator, args=(message_queue,)).start()
+    server_main("data.db", message_queue)

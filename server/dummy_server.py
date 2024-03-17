@@ -3,6 +3,7 @@ import math
 import random
 import time
 from queue import Queue as QQueue
+from threading import Thread
 
 from parse import Message
 from server.main import server_main
@@ -28,12 +29,19 @@ def run_dummy_parser(message_queue: QQueue):
         yc = math.sin(t * 0.5) + random.random() * 0.05 + 4
         g = 100 + 0.1 * (t - start) + random.random() * 0.1
 
-        msg = Message(int(t), "dummy", ya, yb, yc, ya/10, yb/10, yc/10, math.nan, 0, "dummy", g, int(t)//10*10, "dummy")
+        msg = Message(
+            int(t), "dummy",
+            ya, yb, yc, ya / 10, yb / 10, yc / 10, math.nan,
+            0, "dummy",
+            g, int(t) // 10 * 10, "dummy"
+        )
         message_queue.put(msg)
 
 
 def main():
-    server_main("dummy.db", run_dummy_parser)
+    message_queue = QQueue()
+    Thread(target=run_dummy_parser, args=(message_queue,)).start()
+    server_main("dummy.db", message_queue)
 
 
 if __name__ == '__main__':
