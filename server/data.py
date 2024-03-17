@@ -94,8 +94,10 @@ class Database:
         )
         self.conn.commit()
 
-    def insert(self, msg: Message):
+    def insert(self, msg: Message) -> Set[str]:
         print(f"Inserting {msg}")
+        updated_tables = set()
+
         if isinstance(msg, MeterMessage):
             if msg.timestamp is not None:
                 self.conn.execute(
@@ -103,25 +105,31 @@ class Database:
                     (msg.timestamp, msg.timestamp_str, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3,
                      msg.voltage_1, msg.voltage_2, msg.voltage_3),
                 )
+                updated_tables.add("meter_samples")
             if msg.peak_power_timestamp is not None:
                 self.conn.execute(
                     "INSERT OR REPLACE INTO meter_peaks VALUES(?, ?, ?)",
                     (msg.peak_power_timestamp, msg.peak_power_timestamp_str, msg.peak_power)
                 )
+                updated_tables.add("meter_peaks")
             if msg.gas_timestamp is not None:
                 self.conn.execute(
                     "INSERT OR REPLACE INTO gas_samples VALUES(?, ?, ?)",
                     (msg.gas_timestamp, msg.gas_timestamp_str, msg.gas_volume)
                 )
+                updated_tables.add("gas_samples")
             self.conn.commit()
         elif isinstance(msg, ADCMessage):
             self.conn.execute(
                 "INSERT OR REPLACE INTO water_height_samples VALUES(?, ?)",
                 (msg.timestamp, msg.voltage_int),
             )
+            updated_tables.add("water_height_samples")
             self.conn.commit()
         else:
             raise ValueError(f"Unknown message type: {msg}")
+
+        return updated_tables
 
     # TODO decide a proper API for this, this kinda sucks
     #   maybe just have separate functions for power and gas, which then call an internal function?
@@ -252,7 +260,7 @@ class MultiSeries:
 
 class Tracker:
     def __init__(self):
-        self.last_timestamp = None
+        self.table_last_timestamp: Dict[str, int] = {}
 
         self.multi_series = MultiSeries({
             "minute": Series.empty(SeriesKind.POWER, Buckets(60, 1)),
@@ -265,15 +273,16 @@ class Tracker:
             "water": Series.empty(SeriesKind.WATER, Buckets(5 * 60, None)),
         })
 
-    def collect_update(self, database: Database, curr_timestamp: int) -> MultiSeries:
-        prev_timestamp = self.last_timestamp
-        self.last_timestamp = curr_timestamp
-
+    def update(self, database: Database, updated_tables: Set[str], curr_timestamp: int) -> MultiSeries:
         delta_multi_series = MultiSeries({})
 
         for key in self.multi_series.map:
             series = self.multi_series.map[key]
             curr_oldest, curr_newest = series.buckets.bucket_bounds(curr_timestamp)
+
+            if series.kind.value.table not in updated_tables:
+                continue
+            prev_timestamp = self.table_last_timestamp.get(series.kind.value.table)
 
             if prev_timestamp is None:
                 # fetch the entire series
@@ -305,6 +314,10 @@ class Tracker:
             delta_series.extend_items(new_items)
             delta_multi_series.map[key] = delta_series
 
+        # update table last timestamps
+        for table in updated_tables:
+            self.table_last_timestamp[table] = curr_timestamp
+
         return delta_multi_series
 
     def get_history(self) -> MultiSeries:
@@ -319,29 +332,21 @@ class DataStore:
         self.lock = Lock()
         self.broadcast_queues: Set[JQueue] = set()
 
-        self.prev_timestamp = None
-
     def process_message(self, msg: Message):
         with self.lock:
             # print(f"Processing message {msg}")
 
             # add to database
-            self.database.insert(msg)
+            updated_tables = self.database.insert(msg)
 
-            # only update if the time has changed to avoid bugs
-            # TODO proper fix for this incremental updating stuff (eg. don't compute buckets in DB, do this in python)
-            if self.prev_timestamp is None:
-                self.prev_timestamp = msg.timestamp
-            elif msg.timestamp != self.prev_timestamp:
-                # update trackers
-                # careful, we've already added the new values to the database
-                update_series = self.tracker.collect_update(self.database, self.prev_timestamp)
+            # update trackers
+            # careful, we've already added the new values to the database
+            # TODO we're sending two messages in a short timespan (eg. if power and water both update), fix this
+            update_series = self.tracker.update(self.database, updated_tables=updated_tables, curr_timestamp=msg.timestamp)
 
-                # broadcast update series to sockets
-                for queue in self.broadcast_queues:
-                    queue.sync_q.put(update_series)
-
-                self.prev_timestamp = msg.timestamp
+            # broadcast update series to sockets
+            for queue in self.broadcast_queues:
+                queue.sync_q.put(update_series)
 
     def add_broadcast_queue_get_data(self, queue: JQueue) -> MultiSeries:
         with self.lock:
