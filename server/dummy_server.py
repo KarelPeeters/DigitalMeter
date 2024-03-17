@@ -5,7 +5,8 @@ import time
 from queue import Queue as QQueue
 from threading import Thread
 
-from inputs.parse import Message
+from inputs.adc import ADCMessage
+from inputs.parse import MeterMessage
 from server.main import server_main
 
 
@@ -29,7 +30,7 @@ def run_dummy_parser(message_queue: QQueue):
         yc = math.sin(t * 0.5) + random.random() * 0.05 + 4
         g = 100 + 0.1 * (t - start) + random.random() * 0.1
 
-        msg = Message(
+        msg = MeterMessage(
             int(t), "dummy",
             ya, yb, yc, ya / 10, yb / 10, yc / 10, math.nan,
             0, "dummy",
@@ -38,9 +39,16 @@ def run_dummy_parser(message_queue: QQueue):
         message_queue.put(msg)
 
 
+def run_dummy_adc(queue: QQueue):
+    while True:
+        queue.put(ADCMessage(timestamp=int(time.time()), voltage_int=random.randrange(1024)))
+        time.sleep(10)
+
+
 def main():
     message_queue = QQueue()
     Thread(target=run_dummy_parser, args=(message_queue,)).start()
+    Thread(target=run_dummy_adc, args=(message_queue,)).start()
     server_main("dummy.db", message_queue)
 
 

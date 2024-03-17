@@ -4,7 +4,7 @@ import os
 import sqlite3
 import time
 
-from inputs.parse import Parser, Message
+from inputs.parse import Parser, MeterMessage
 
 
 def iter_messages(path: str):
@@ -18,7 +18,7 @@ def iter_messages(path: str):
             raw_msg = parser.push_line(line)
             if raw_msg is not None and raw_msg.is_clean:
                 offset = f.tell()
-                msg = Message.from_raw(raw_msg)
+                msg = MeterMessage.from_raw(raw_msg)
                 yield offset, msg
 
 

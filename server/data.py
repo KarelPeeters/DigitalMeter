@@ -2,11 +2,14 @@ import enum
 import sqlite3
 from dataclasses import dataclass
 from threading import Lock
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Union
 
 from janus import Queue as JQueue
 
-from inputs.parse import Message
+from inputs.adc import ADCMessage
+from inputs.parse import MeterMessage
+
+Message = Union[MeterMessage, ADCMessage]
 
 
 @dataclass
@@ -29,6 +32,12 @@ class SeriesKind(enum.Enum):
         table="gas_samples",
         columns=["volume"],
         unit_label="V (m^3)"
+    )
+    WATER = SeriesKindInfo(
+        name="height",
+        table="water_height_samples",
+        columns=["(voltage_int / 1023.0 * 5.0 - 0.5) / 4.0 * 5.0"],
+        unit_label="height (m)",
     )
 
 
@@ -77,30 +86,50 @@ class Database:
             "    volume REAL"
             ")"
         )
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS water_height_samples("
+            "    timestamp INTEGER PRIMARY KEY,"
+            "    voltage_int INTEGER"
+            ")"
+        )
         self.conn.commit()
 
     def insert(self, msg: Message):
-        if msg.timestamp is not None:
+        print(f"Inserting {msg}")
+        if isinstance(msg, MeterMessage):
+            if msg.timestamp is not None:
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+                    (msg.timestamp, msg.timestamp_str, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3,
+                     msg.voltage_1, msg.voltage_2, msg.voltage_3),
+                )
+            if msg.peak_power_timestamp is not None:
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO meter_peaks VALUES(?, ?, ?)",
+                    (msg.peak_power_timestamp, msg.peak_power_timestamp_str, msg.peak_power)
+                )
+            if msg.gas_timestamp is not None:
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO gas_samples VALUES(?, ?, ?)",
+                    (msg.gas_timestamp, msg.gas_timestamp_str, msg.gas_volume)
+                )
+            self.conn.commit()
+        elif isinstance(msg, ADCMessage):
             self.conn.execute(
-                "INSERT OR REPLACE INTO meter_samples VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
-                (msg.timestamp, msg.timestamp_str, msg.instant_power_1, msg.instant_power_2, msg.instant_power_3,
-                 msg.voltage_1, msg.voltage_2, msg.voltage_3),
+                "INSERT OR REPLACE INTO water_height_samples VALUES(?, ?)",
+                (msg.timestamp, msg.voltage_int),
             )
-        if msg.peak_power_timestamp is not None:
-            self.conn.execute(
-                "INSERT OR REPLACE INTO meter_peaks VALUES(?, ?, ?)",
-                (msg.peak_power_timestamp, msg.peak_power_timestamp_str, msg.peak_power)
-            )
-        if msg.gas_timestamp is not None:
-            self.conn.execute(
-                "INSERT OR REPLACE INTO gas_samples VALUES(?, ?, ?)",
-                (msg.gas_timestamp, msg.gas_timestamp_str, msg.gas_volume)
-            )
-        self.conn.commit()
+            self.conn.commit()
+        else:
+            raise ValueError(f"Unknown message type: {msg}")
 
     # TODO decide a proper API for this, this kinda sucks
     #   maybe just have separate functions for power and gas, which then call an internal function?
-    def fetch_series_items(self, kind: SeriesKind, bucket_size: Optional[int], oldest: Optional[int], newest: Optional[int]):
+    # TODO currently the user still has to call process_values on the result
+    def fetch_series_items(
+            self, kind: SeriesKind, bucket_size: Optional[int],
+            oldest: Optional[int], newest: Optional[int]
+    ):
         """
         Fetch the buckets between `oldest` (inclusive) and `newest` (exclusive)`.
         """
@@ -232,9 +261,11 @@ class Tracker:
             "week": Series.empty(SeriesKind.POWER, Buckets(7 * 24 * 60 * 60, 15 * 60)),
             # TODO improve gas padding: add nan only if the gap is >2x the adjacent one
             "gas": Series.empty(SeriesKind.GAS, Buckets(7 * 24 * 60 * 60, None)),
+            # "water": Series.empty(SeriesKind.WATER, Buckets(7 * 24 * 60 * 60, None)),
+            "water": Series.empty(SeriesKind.WATER, Buckets(60, None)),
         })
 
-    def process_message(self, database: Database, msg: Message):
+    def process_message(self, database: Database, msg: MeterMessage):
         prev_timestamp = self.last_timestamp
         curr_timestamp = msg.timestamp
         self.last_timestamp = curr_timestamp

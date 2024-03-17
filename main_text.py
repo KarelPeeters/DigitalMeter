@@ -4,7 +4,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.dates import DateFormatter, AutoDateLocator, ConciseDateFormatter
 
-from inputs.parse import Parser, Message
+from inputs.parse import Parser, MeterMessage
 
 
 def main():
@@ -29,7 +29,7 @@ def main():
             raw_msg = parser.push_line(line)
 
             if raw_msg is not None and raw_msg.is_clean:
-                msg = Message.from_raw(raw_msg)
+                msg = MeterMessage.from_raw(raw_msg)
 
                 timestamp.append(datetime.fromtimestamp(msg.timestamp))
                 instant_power_1.append(msg.instant_power_1)
