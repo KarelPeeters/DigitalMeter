@@ -95,7 +95,7 @@ class Database:
         self.conn.commit()
 
     def insert(self, msg: Message):
-        # print(f"Inserting {msg}")
+        print(f"Inserting {msg}")
         if isinstance(msg, MeterMessage):
             if msg.timestamp is not None:
                 self.conn.execute(
