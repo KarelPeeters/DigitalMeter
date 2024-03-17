@@ -58,6 +58,8 @@ def parse_download_params(args, ext: str) -> DownloadParams:
             bucket_size = int(bucket_size)
             if bucket_size < 1:
                 raise ValueError()
+        if bucket_size == 1:
+            bucket_size = None
 
         curr_arg = "quantity"
         quantity = args.pop("quantity", None)
