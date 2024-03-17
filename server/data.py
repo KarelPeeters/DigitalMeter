@@ -268,6 +268,10 @@ class Tracker:
     def process_message(self, database: Database, msg: MeterMessage):
         prev_timestamp = self.last_timestamp
         curr_timestamp = msg.timestamp
+
+        if curr_timestamp <= self.last_timestamp:
+            return
+
         self.last_timestamp = curr_timestamp
 
         delta_multi_series = MultiSeries({})
