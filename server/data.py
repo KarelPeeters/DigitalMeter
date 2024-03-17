@@ -252,7 +252,7 @@ class MultiSeries:
 
 class Tracker:
     def __init__(self):
-        self.last_timestamp: Optional[int] = None
+        self.prev_timestamp: Dict[str, int] = {}
 
         self.multi_series = MultiSeries({
             "minute": Series.empty(SeriesKind.POWER, Buckets(60, 1)),
@@ -265,24 +265,14 @@ class Tracker:
             "water": Series.empty(SeriesKind.WATER, Buckets(60, None)),
         })
 
-    def process_message(self, database: Database, msg: MeterMessage):
+    def collect_update(self, database: Database, curr_timestamp: int) -> MultiSeries:
         delta_multi_series = MultiSeries({})
-
-        prev_timestamp = self.last_timestamp
-        curr_timestamp = msg.timestamp
-        self.last_timestamp = curr_timestamp
-
-        # skip everything if the timestamp hasn't changed
-        # TODO this is probably not fully correct, we might drop some values
-        #  if different messages for the same timestamp come in
-        if prev_timestamp is not None and curr_timestamp <= prev_timestamp:
-            return delta_multi_series
 
         for key in self.multi_series.map:
             series = self.multi_series.map[key]
             curr_oldest, curr_newest = series.buckets.bucket_bounds(curr_timestamp)
 
-            if prev_timestamp is None:
+            if key not in self.prev_timestamp:
                 # fetch the entire series
                 print(f"Fetching entire series for '{key}'")
                 new_items = database.fetch_series_items(
@@ -290,7 +280,7 @@ class Tracker:
                 ).fetchall()
             else:
                 # only fetch new buckets if any
-                _, prev_newest = series.buckets.bucket_bounds(prev_timestamp)
+                _, prev_newest = series.buckets.bucket_bounds(self.prev_timestamp[key])
                 if curr_newest == prev_newest:
                     continue
                 else:
@@ -310,6 +300,9 @@ class Tracker:
             delta_series = Series.empty(series.kind, series.buckets)
             delta_series.extend_items(new_items)
             delta_multi_series.map[key] = delta_series
+
+            # update prev_timestamp
+            self.prev_timestamp[key] = curr_timestamp
 
         return delta_multi_series
 
@@ -334,7 +327,7 @@ class DataStore:
 
             # update trackers
             # careful, we've already added the new values to the database
-            update_series = self.tracker.process_message(self.database, msg)
+            update_series = self.tracker.collect_update(self.database, msg.timestamp)
 
             # broadcast update series to sockets
             for queue in self.broadcast_queues:
