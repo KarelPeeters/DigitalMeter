@@ -269,8 +269,7 @@ class Tracker:
             "week": Series.empty(SeriesKind.POWER, Buckets(7 * 24 * 60 * 60, 15 * 60)),
             # TODO improve gas padding: add nan only if the gap is >2x the adjacent one
             "gas": Series.empty(SeriesKind.GAS, Buckets(7 * 24 * 60 * 60, None)),
-            # "water": Series.empty(SeriesKind.WATER, Buckets(7 * 24 * 60 * 60, None)),
-            "water": Series.empty(SeriesKind.WATER, Buckets(24 * 60 * 60, None)),
+            "water": Series.empty(SeriesKind.WATER, Buckets(31 * 24 * 60 * 60, 15 * 60)),
         })
 
     def update(self, database: Database, updated_tables: Set[str], curr_timestamp: int) -> MultiSeries:
