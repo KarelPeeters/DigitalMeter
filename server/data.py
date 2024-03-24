@@ -18,6 +18,7 @@ class SeriesKindInfo:
     table: str
     columns: List[str]
     unit_label: str
+    hline_values: List[float]
 
 
 class SeriesKind(enum.Enum):
@@ -25,19 +26,22 @@ class SeriesKind(enum.Enum):
         name="power",
         table="meter_samples",
         columns=["instant_power_1", "instant_power_2", "instant_power_3"],
-        unit_label="P (W)"
+        unit_label="P (W)",
+        hline_values=[],
     )
     GAS = SeriesKindInfo(
         name="gas",
         table="gas_samples",
         columns=["volume"],
-        unit_label="V (m^3)"
+        unit_label="V (m^3)",
+        hline_values=[],
     )
     WATER = SeriesKindInfo(
         name="height",
         table="water_height_samples",
         columns=["(voltage_int / 1023.0 * 5.0 - 0.5) / 4.0 * 5.0"],
         unit_label="height (m) ~ 40l/cm",
+        hline_values=[1.885, 1.764],
     )
 
 
@@ -192,27 +196,22 @@ class Buckets:
 class Series:
     kind: SeriesKind
     buckets: Buckets
-    hline_values: List[float]
 
     timestamps: List[int]
     values: List[List[float]]
 
     @staticmethod
-    def empty(kind: SeriesKind, buckets: Buckets, hline_values: Optional[List[float]] = None):
-        if hline_values is None:
-            hline_values = []
-
+    def empty(kind: SeriesKind, buckets: Buckets):
         return Series(
             kind=kind,
             buckets=buckets,
             timestamps=[],
             values=[[] for _ in kind.value.columns],
-            hline_values=hline_values
         )
 
     @staticmethod
-    def empty_like(other):
-        return Series.empty(kind=other.kind, buckets=other.buckets, hline_values=other.hline_values)
+    def empty_like(other: 'Series'):
+        return Series.empty(kind=other.kind, buckets=other.buckets)
 
     def to_json(self):
         return {
@@ -220,7 +219,7 @@ class Series:
             "bucket_size": self.buckets.bucket_size,
             "kind": self.kind.value.name,
             "unit_label": self.kind.value.unit_label,
-            "hline_values": self.hline_values,
+            "hline_values": self.kind.value.hline_values,
 
             "timestamps": self.timestamps,
             "values": self.values,
@@ -230,8 +229,6 @@ class Series:
         return Series(
             kind=self.kind,
             buckets=self.buckets,
-            hline_values=self.hline_values,
-
             timestamps=list(self.timestamps),
             values=[list(x) for x in self.values]
         )
@@ -285,7 +282,7 @@ class Tracker:
             "week": Series.empty(SeriesKind.POWER, Buckets(7 * 24 * 60 * 60, 15 * 60)),
             # TODO improve gas padding: add nan only if the gap is >2x the adjacent one
             "gas": Series.empty(SeriesKind.GAS, Buckets(7 * 24 * 60 * 60, None)),
-            "water": Series.empty(SeriesKind.WATER, Buckets(31 * 24 * 60 * 60, 15 * 60), hline_values=[1.885, 1.764]),
+            "water": Series.empty(SeriesKind.WATER, Buckets(31 * 24 * 60 * 60, 15 * 60)),
         })
 
     def update(self, database: Database, updated_tables: Set[str], curr_timestamp: int) -> MultiSeries:
