@@ -93,6 +93,7 @@ class Series {
         this.bucket_size = 0
         this.unit_label = ""
         this.kind = ""
+        this.hline_values = null
 
         this.timestamps = []
         this.all_values = {}
@@ -110,6 +111,7 @@ class Series {
         this.bucket_size = series_data["bucket_size"];
         this.unit_label = series_data["unit_label"];
         this.kind = series_data["kind"];
+        this.hline_values = series_data["hline_values"];
 
         // append data to state
         for (let i = 0; i < series_data["timestamps"].length; i++) {
@@ -212,7 +214,8 @@ class Series {
                 title: {
                     text: this.unit_label,
                 }
-            }
+            },
+            shapes: [],
         };
 
         if (this.window_size !== null) {
@@ -226,6 +229,23 @@ class Series {
         let config = {
             staticPlot: !interactive,
         };
+
+        // shapes
+        layout.shapes = []
+
+        for (const hline_value of this.hline_values) {
+            layout.shapes.push({
+                type: "line",
+                x0: this.timestamps[0],
+                x1: this.timestamps[this.timestamps.length - 1],
+                y0: hline_value,
+                y1: hline_value,
+                line: {
+                    color: "black",
+                    dash: "dash",
+                }
+            })
+        }
 
         return {
             data: data,
