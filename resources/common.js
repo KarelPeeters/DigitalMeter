@@ -236,8 +236,9 @@ class Series {
         for (const hline_value of this.hline_values) {
             layout.shapes.push({
                 type: "line",
-                x0: this.timestamps[0],
-                x1: this.timestamps[this.timestamps.length - 1],
+                x0: 0,
+                x1: 1,
+                xref: "paper",
                 y0: hline_value,
                 y1: hline_value,
                 line: {
