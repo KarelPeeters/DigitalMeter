@@ -60,7 +60,7 @@ class State {
             this.button_preview.disabled = true
             this.button_download.disabled = true
         } else {
-            const delta_sec = (this.input_end.valueAsDate - this.input_start.valueAsDate) / 1000;
+            const delta_sec = (this.getTime(this.input_end) - this.getTime(this.input_start)) / 1000;
             let samples;
 
             if (is_gas) {
@@ -122,8 +122,8 @@ class State {
         if (!this.form.reportValidity()) {
             return undefined;
         }
-        let start = (this.input_start.valueAsDate.getTime() + this.tz_offset_ms) / 1000.
-        let end = (this.input_end.valueAsDate.getTime() + this.tz_offset_ms) / 1000.
+        let start = this.getTime(this.input_start) / 1000.0
+        let end = this.getTime(this.input_end) / 1000.0
 
         const is_gas = this.input_quantity.value === "gas";
 
@@ -151,6 +151,15 @@ class State {
             // noinspection JSUnresolvedFunction
             Plotly.react(this.plot, plot_obj);
         }
+    }
+
+    getTime(field) {
+        // workaround for valueAsDate not working on chromium-based browsers for some reason
+        let date = field.valueAsDate;
+        if (date !== null) {
+            return date.getTime() + this.tz_offset_ms;
+        }
+        return new Date(field.value).getTime()
     }
 }
 
