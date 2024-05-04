@@ -21,6 +21,15 @@ class SeriesKindInfo:
     hline_values: List[float]
 
 
+WATER_HEIGHT_BASE = 1.733
+WATER_HEIGHT_MAX = 1.98
+WATER_AREA_BASE = 7500 / WATER_HEIGHT_BASE
+WATER_AREA_TOP = 360
+
+WATER_HEIGHT_EXPR = "(voltage_int / 1023.0 * 5.0 - 0.5) / 4.0 * 5.0"
+WATER_VOLUME_EXPR = f"min({WATER_HEIGHT_EXPR} * {WATER_AREA_BASE}, {WATER_HEIGHT_BASE * WATER_AREA_BASE} + ({WATER_HEIGHT_EXPR} - {WATER_HEIGHT_BASE}) * {WATER_AREA_TOP})"
+
+
 class SeriesKind(enum.Enum):
     POWER = SeriesKindInfo(
         name="power",
@@ -37,11 +46,14 @@ class SeriesKind(enum.Enum):
         hline_values=[],
     )
     WATER = SeriesKindInfo(
-        name="height",
+        name="water",
         table="water_height_samples",
-        columns=["(voltage_int / 1023.0 * 5.0 - 0.5) / 4.0 * 5.0"],
-        unit_label="height (m) ~ 40l/cm",
-        hline_values=[1.733, 1.98],
+        columns=[WATER_VOLUME_EXPR],
+        unit_label="volume (l)",
+        hline_values=[
+            WATER_HEIGHT_BASE * WATER_AREA_BASE,
+            WATER_HEIGHT_BASE * WATER_AREA_BASE + (WATER_HEIGHT_MAX - WATER_HEIGHT_BASE) * WATER_AREA_TOP
+        ],
     )
 
 
