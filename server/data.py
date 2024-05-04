@@ -41,7 +41,7 @@ class SeriesKind(enum.Enum):
         table="water_height_samples",
         columns=["(voltage_int / 1023.0 * 5.0 - 0.5) / 4.0 * 5.0"],
         unit_label="height (m) ~ 40l/cm",
-        hline_values=[1.885, 1.764],
+        hline_values=[1.733, 1.98],
     )
 
 
