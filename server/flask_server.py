@@ -67,8 +67,10 @@ def parse_download_params(args, ext: str) -> DownloadParams:
             quantity = SeriesKind.POWER
         elif quantity == "gas":
             quantity = SeriesKind.GAS
-        elif quantity == "water":
-            quantity = SeriesKind.WATER
+        elif quantity == "water_height":
+            quantity = SeriesKind.WATER_HEIGHT
+        elif quantity == "water_volume":
+            quantity = SeriesKind.WATER_VOLUME
         else:
             raise ValueError()
 
@@ -86,11 +88,12 @@ def parse_download_params(args, ext: str) -> DownloadParams:
             raise ValueError()
 
     except ValueError:
-        curr_arg = f"'{curr_arg}'"
-        raise ParseDownloadError(f"<p>Invalid parameter {flask.escape(curr_arg)}={flask.escape(all_args.get(curr_arg))}</p>")
+        curr_arg_str = f"'{curr_arg}'"
+        curr_value = f"'{all_args.get(curr_arg)}'"
+        raise ParseDownloadError(f"<p>Invalid parameter {flask.escape(curr_arg_str)}={flask.escape(curr_value)}</p>")
     except KeyError:
-        curr_arg = f"'{curr_arg}'"
-        raise ParseDownloadError(f"<p>Missing parameter {flask.escape(curr_arg)}</p>")
+        curr_arg_str = f"'{curr_arg}'"
+        raise ParseDownloadError(f"<p>Missing parameter {flask.escape(curr_arg_str)}</p>")
     if len(args) > 0:
         raise ParseDownloadError(f"<p>Unused parameters {flask.escape(list(args.keys()))}</p>")
 

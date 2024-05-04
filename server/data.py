@@ -35,21 +35,28 @@ class SeriesKind(enum.Enum):
         name="power",
         table="meter_samples",
         columns=["instant_power_1", "instant_power_2", "instant_power_3"],
-        unit_label="P (W)",
+        unit_label="power P (W)",
         hline_values=[],
     )
     GAS = SeriesKindInfo(
         name="gas",
         table="gas_samples",
         columns=["volume"],
-        unit_label="V (m^3)",
+        unit_label="gas volume (m^3)",
         hline_values=[],
     )
-    WATER = SeriesKindInfo(
-        name="water",
+    WATER_HEIGHT = SeriesKindInfo(
+        name="water-height",
+        table="water_height_samples",
+        columns=[WATER_HEIGHT_EXPR],
+        unit_label="water height (m)",
+        hline_values=[WATER_HEIGHT_BASE, WATER_HEIGHT_MAX],
+    )
+    WATER_VOLUME = SeriesKindInfo(
+        name="water-volume",
         table="water_height_samples",
         columns=[WATER_VOLUME_EXPR],
-        unit_label="volume (l)",
+        unit_label="water volume (l)",
         hline_values=[
             WATER_HEIGHT_BASE * WATER_AREA_BASE,
             WATER_HEIGHT_BASE * WATER_AREA_BASE + (WATER_HEIGHT_MAX - WATER_HEIGHT_BASE) * WATER_AREA_TOP
@@ -294,7 +301,7 @@ class Tracker:
             "week": Series.empty(SeriesKind.POWER, Buckets(7 * 24 * 60 * 60, 15 * 60)),
             # TODO improve gas padding: add nan only if the gap is >2x the adjacent one
             "gas": Series.empty(SeriesKind.GAS, Buckets(7 * 24 * 60 * 60, None)),
-            "water": Series.empty(SeriesKind.WATER, Buckets(31 * 24 * 60 * 60, 15 * 60)),
+            "water": Series.empty(SeriesKind.WATER_VOLUME, Buckets(31 * 24 * 60 * 60, 15 * 60)),
         })
 
     def update(self, database: Database, updated_tables: Set[str], curr_timestamp: int) -> MultiSeries:
